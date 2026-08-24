@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Plant, SpeciesInfo } from '../types';
+import type { WeatherInfo } from './weather';
 
 const PLANTS_KEY = 'plants.app.plants.v1';
 const SPECIES_CACHE_KEY = 'plants.app.species-cache.v1';
 const SEEDED_KEY = 'plants.app.seeded.v1';
 const NOTIFICATIONS_ENABLED_KEY = 'plants.app.notifications-enabled.v1';
+const WEATHER_ENABLED_KEY = 'plants.app.weather-enabled.v1';
+const WEATHER_CACHE_KEY = 'plants.app.weather-cache.v1';
 
 export const loadPlants = async (): Promise<Plant[]> => {
   try {
@@ -49,4 +52,24 @@ export const isNotificationsEnabled = async (): Promise<boolean> =>
 
 export const setNotificationsEnabled = async (enabled: boolean): Promise<void> => {
   await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? '1' : '0');
+};
+
+export const isWeatherEnabled = async (): Promise<boolean> =>
+  (await AsyncStorage.getItem(WEATHER_ENABLED_KEY)) === '1';
+
+export const setWeatherEnabled = async (enabled: boolean): Promise<void> => {
+  await AsyncStorage.setItem(WEATHER_ENABLED_KEY, enabled ? '1' : '0');
+};
+
+export const loadCachedWeather = async (): Promise<WeatherInfo | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(WEATHER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveCachedWeather = async (weather: WeatherInfo): Promise<void> => {
+  await AsyncStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(weather));
 };

@@ -5,6 +5,7 @@ export interface Plant {
   name: string;
   species?: string;
   location?: string;
+  isOutdoor?: boolean;
   photoUri?: string;
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)

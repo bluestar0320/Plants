@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,11 +11,12 @@ import {
   View,
 } from 'react-native';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import type { LightNeed, Plant, PlantDraft, SpeciesInfo } from '../types';
+import type { LightNeed, PlantDraft, SpeciesInfo } from '../types';
 import { parseDateOnly, todayISO, toISODate } from '../lib/date';
 import { pickAndSavePlantPhoto } from '../lib/image';
 import { colors, radius, spacing } from '../theme';
 import SpeciesSearch from './SpeciesSearch';
+import LightMeter from './LightMeter';
 
 const LIGHT_LABELS: Record<LightNeed, string> = {
   low: '음지',
@@ -33,7 +35,9 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [name, setName] = useState(initial?.name ?? '');
   const [species, setSpecies] = useState(initial?.species ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
+  const [isOutdoor, setIsOutdoor] = useState(initial?.isOutdoor ?? false);
   const [photoUri, setPhotoUri] = useState(initial?.photoUri);
+  const [lightMeterOpen, setLightMeterOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [interval, setInterval] = useState(String(initial?.wateringIntervalDays ?? 7));
   const [lastWateredAt, setLastWateredAt] = useState(initial?.lastWateredAt ?? todayISO());
@@ -93,6 +97,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       name: name.trim(),
       species: species.trim() || undefined,
       location: location.trim() || undefined,
+      isOutdoor,
       photoUri,
       wateringIntervalDays: Math.round(intervalNum),
       lastWateredAt,
@@ -166,6 +171,24 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
         </View>
       </View>
 
+      <View style={styles.field}>
+        <Text style={styles.label}>환경</Text>
+        <View style={styles.chipRow}>
+          <Pressable
+            style={[styles.chip, !isOutdoor && styles.chipSelected]}
+            onPress={() => setIsOutdoor(false)}
+          >
+            <Text style={[styles.chipText, !isOutdoor && styles.chipTextSelected]}>🏠 실내</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.chip, isOutdoor && styles.chipSelected]}
+            onPress={() => setIsOutdoor(true)}
+          >
+            <Text style={[styles.chipText, isOutdoor && styles.chipTextSelected]}>🌳 실외</Text>
+          </Pressable>
+        </View>
+      </View>
+
       <View style={styles.fieldRow}>
         <View style={[styles.field, styles.flex1]}>
           <Text style={styles.label}>물주기 주기 (일)</Text>
@@ -195,9 +218,14 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>
-          빛 요구량{careLevel ? ` · 난이도: ${careLevel}` : ''}
-        </Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>
+            빛 요구량{careLevel ? ` · 난이도: ${careLevel}` : ''}
+          </Text>
+          <Pressable onPress={() => setLightMeterOpen(true)}>
+            <Text style={styles.linkText}>📏 지금 밝기 측정</Text>
+          </Pressable>
+        </View>
         <View style={styles.chipRow}>
           {(Object.keys(LIGHT_LABELS) as LightNeed[]).map((key) => (
             <Pressable
@@ -212,6 +240,22 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
           ))}
         </View>
       </View>
+
+      <Modal visible={lightMeterOpen} animationType="slide" onRequestClose={() => setLightMeterOpen(false)}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>조도계</Text>
+          <Pressable onPress={() => setLightMeterOpen(false)}>
+            <Text style={styles.modalClose}>✕</Text>
+          </Pressable>
+        </View>
+        <LightMeter
+          onApply={(value) => {
+            setLight(value);
+            setLightMeterOpen(false);
+          }}
+          onClose={() => setLightMeterOpen(false)}
+        />
+      </Modal>
 
       <View style={styles.field}>
         <Text style={styles.label}>메모</Text>
@@ -247,6 +291,8 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', gap: spacing.md },
   flex1: { flex: 1 },
   label: { fontSize: 13, fontWeight: '600', color: colors.textDim },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  linkText: { fontSize: 12.5, fontWeight: '600', color: colors.green },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -299,4 +345,16 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.textHeading },
+  modalClose: { fontSize: 18, color: colors.textDim, padding: spacing.xs },
 });

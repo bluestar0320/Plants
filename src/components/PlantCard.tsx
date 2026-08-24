@@ -40,7 +40,9 @@ export default function PlantCard({ plant, onWater, onEdit, onDelete }: Props) {
           </View>
         )}
         <View style={styles.info}>
-          <Text style={styles.name}>{plant.name}</Text>
+          <Text style={styles.name}>
+            {plant.name} <Text style={styles.envIcon}>{plant.isOutdoor ? '🌳' : '🏠'}</Text>
+          </Text>
           {(plant.species || plant.location) && (
             <Text style={styles.meta} numberOfLines={1}>
               {[plant.species, plant.location].filter(Boolean).join(' · ')}
@@ -109,6 +111,7 @@ const styles = StyleSheet.create({
   photoPlaceholderText: { fontSize: 24 },
   info: { flex: 1 },
   name: { fontSize: 17, fontWeight: '600', color: colors.textHeading },
+  envIcon: { fontSize: 13 },
   meta: { fontSize: 13, color: colors.textDim, marginTop: 2 },
   badge: {
     borderRadius: radius.pill,
