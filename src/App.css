@@ -35,6 +35,17 @@
   margin-top: 2px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.notif-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin: -12px 0 20px;
+}
+
 /* Stats */
 .stats {
   display: grid;
