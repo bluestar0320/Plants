@@ -25,6 +25,21 @@ npm run android        # 또는 npm run web 으로 빠르게 미리보기
 
 `.env`가 없거나 키가 비어 있어도 앱 자체는 정상 동작하며, 종류 검색 기능만 에러 메시지를 보여줍니다.
 
+## APK 빌드하기 (EAS Build)
+
+이 저장소 자체는 아직 빌드된 앱이 아니라 소스 코드입니다. 실제 폰에 설치할 APK를 만들려면 [Expo](https://expo.dev) 계정(무료)이 필요하고, 아래 명령을 **본인 컴퓨터에서** 실행해야 해요 (로그인은 대신 해드릴 수 없어요).
+
+```bash
+npm install -g eas-cli   # 또는 매번 npx eas-cli 사용
+eas login                # Expo 계정으로 로그인 (없으면 https://expo.dev 에서 무료 가입)
+eas build:configure      # 최초 1회, 프로젝트를 Expo 계정에 연결
+eas build --platform android --profile preview
+```
+
+빌드가 끝나면 터미널과 [expo.dev](https://expo.dev) 대시보드에 APK 다운로드 링크가 나와요. 그 링크를 폰으로 열어 다운로드한 뒤 설치하면 됩니다 (출처를 알 수 없는 앱 설치를 허용해야 할 수 있어요). 빌드는 Expo의 클라우드 서버에서 진행되어 로컬에 Android Studio를 설치할 필요가 없습니다.
+
+이후 코드를 수정하고 다시 배포하려면 같은 `eas build` 명령을 다시 실행하면 됩니다.
+
 ## 기술 스택
 
 Expo (React Native) + TypeScript. AsyncStorage로 로컬 저장, expo-notifications로 로컬 알림, expo-image-picker/expo-image-manipulator로 사진 처리.
