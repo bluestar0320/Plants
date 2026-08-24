@@ -5,16 +5,42 @@ export interface Plant {
   name: string;
   species?: string;
   location?: string;
-  emoji: string;
-  photo?: string;
+  photoUri?: string;
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)
   light: LightNeed;
   notes?: string;
+  careLevel?: string;
   createdAt: string; // ISO date
   waterCount: number;
+  notificationId?: string;
+  /** Perenual species id, if this plant was created from a species DB lookup. */
+  speciesId?: number;
 }
 
-export type PlantDraft = Omit<Plant, 'id' | 'createdAt' | 'waterCount'>;
+export type PlantDraft = Omit<
+  Plant,
+  'id' | 'createdAt' | 'waterCount' | 'notificationId'
+>;
 
 export type WaterStatus = 'overdue' | 'today' | 'soon' | 'ok';
+
+/** Cached care info for one species, fetched from the plant database on first lookup. */
+export interface SpeciesInfo {
+  id: number;
+  commonName: string;
+  scientificName?: string;
+  imageUrl?: string;
+  wateringIntervalDays: number;
+  light: LightNeed;
+  careLevel?: string;
+  careNotes?: string;
+  fetchedAt: string; // ISO date, when this entry was cached
+}
+
+export interface SpeciesSearchResult {
+  id: number;
+  commonName: string;
+  scientificName?: string;
+  imageUrl?: string;
+}

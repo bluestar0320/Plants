@@ -1,30 +1,49 @@
-const MAX_DIMENSION = 480;
-const JPEG_QUALITY = 0.82;
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as Crypto from 'expo-crypto';
 
-export const fileToResizedDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('파일을 읽을 수 없어요.'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('이미지를 불러올 수 없어요.'));
-      img.onload = () => {
-        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
-        const width = Math.round(img.width * scale);
-        const height = Math.round(img.height * scale);
+const PHOTOS_DIR_NAME = 'plant-photos';
+const MAX_DIMENSION = 800;
+const JPEG_QUALITY = 0.8;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('이미지를 처리할 수 없어요.'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+const getPhotosDir = (): Directory => {
+  const dir = new Directory(Paths.document, PHOTOS_DIR_NAME);
+  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+  return dir;
+};
+
+/** Opens the photo library, then resizes/compresses the pick into permanent app storage. Returns null if the user cancels. */
+export const pickAndSavePlantPhoto = async (): Promise<string | null> => {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    throw new Error('사진 라이브러리 접근 권한이 필요해요.');
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 1,
+    allowsEditing: true,
+    aspect: [1, 1],
   });
+  if (result.canceled || !result.assets?.[0]) return null;
+
+  const manipulated = await ImageManipulator.manipulate(result.assets[0].uri)
+    .resize({ width: MAX_DIMENSION })
+    .renderAsync();
+  const saved = await manipulated.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+
+  const destFile = new File(getPhotosDir(), `${Crypto.randomUUID()}.jpg`);
+  await new File(saved.uri).move(destFile);
+  return destFile.uri;
+};
+
+export const deletePlantPhoto = (uri?: string): void => {
+  if (!uri) return;
+  try {
+    const file = new File(uri);
+    if (file.exists) file.delete();
+  } catch {
+    // best-effort cleanup only
+  }
+};

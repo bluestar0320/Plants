@@ -1,10 +1,14 @@
-import type { Plant } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Plant, SpeciesInfo } from '../types';
 
-const STORAGE_KEY = 'plants.app.v1';
+const PLANTS_KEY = 'plants.app.plants.v1';
+const SPECIES_CACHE_KEY = 'plants.app.species-cache.v1';
+const SEEDED_KEY = 'plants.app.seeded.v1';
+const NOTIFICATIONS_ENABLED_KEY = 'plants.app.notifications-enabled.v1';
 
-export const loadPlants = (): Plant[] => {
+export const loadPlants = async (): Promise<Plant[]> => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(PLANTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -13,10 +17,36 @@ export const loadPlants = (): Plant[] => {
   }
 };
 
-export const savePlants = (plants: Plant[]): void => {
+export const savePlants = async (plants: Plant[]): Promise<void> => {
+  await AsyncStorage.setItem(PLANTS_KEY, JSON.stringify(plants));
+};
+
+/** Species care-info cache, keyed by Perenual species id, so we only hit the API once per species. */
+export const loadSpeciesCache = async (): Promise<Record<number, SpeciesInfo>> => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(plants));
+    const raw = await AsyncStorage.getItem(SPECIES_CACHE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
   } catch {
-    // storage unavailable (e.g. private mode quota) — ignore, in-memory state still works
+    return {};
   }
+};
+
+export const saveSpeciesToCache = async (info: SpeciesInfo): Promise<void> => {
+  const cache = await loadSpeciesCache();
+  cache[info.id] = info;
+  await AsyncStorage.setItem(SPECIES_CACHE_KEY, JSON.stringify(cache));
+};
+
+export const hasSeeded = async (): Promise<boolean> => (await AsyncStorage.getItem(SEEDED_KEY)) === '1';
+
+export const markSeeded = async (): Promise<void> => {
+  await AsyncStorage.setItem(SEEDED_KEY, '1');
+};
+
+export const isNotificationsEnabled = async (): Promise<boolean> =>
+  (await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY)) === '1';
+
+export const setNotificationsEnabled = async (enabled: boolean): Promise<void> => {
+  await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? '1' : '0');
 };

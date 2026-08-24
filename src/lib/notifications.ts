@@ -1,61 +1,75 @@
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import type { Plant } from '../types';
-import { daysUntilNextWatering, todayISO, waterStatus } from './date';
+import { nextWateringDate } from './date';
 
-const ENABLED_KEY = 'plants.app.notifications.enabled.v1';
-const LOG_KEY = 'plants.app.notifications.log.v1';
+const REMINDER_HOUR = 9;
+const ANDROID_CHANNEL_ID = 'watering-reminders';
 
-export const notificationsSupported = (): boolean =>
-  typeof window !== 'undefined' && 'Notification' in window;
-
-export const getPermission = (): NotificationPermission =>
-  notificationsSupported() ? Notification.permission : 'denied';
-
-export const isEnabled = (): boolean => localStorage.getItem(ENABLED_KEY) === '1';
-
-export const setEnabled = (enabled: boolean): void => {
-  localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
+export const configureNotificationHandler = (): void => {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
 };
 
-const readLog = (): Record<string, string> => {
-  try {
-    return JSON.parse(localStorage.getItem(LOG_KEY) ?? '{}');
-  } catch {
-    return {};
+export const ensureAndroidChannel = async (): Promise<void> => {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+    name: '물주기 알림',
+    importance: Notifications.AndroidImportance.DEFAULT,
+  });
+};
+
+export const requestNotificationPermission = async (): Promise<boolean> => {
+  const current = await Notifications.getPermissionsAsync();
+  if (current.granted) return true;
+  const requested = await Notifications.requestPermissionsAsync();
+  return requested.granted;
+};
+
+export const getNotificationPermissionGranted = async (): Promise<boolean> => {
+  const current = await Notifications.getPermissionsAsync();
+  return current.granted;
+};
+
+const reminderDateFor = (plant: Pick<Plant, 'lastWateredAt' | 'wateringIntervalDays'>): Date => {
+  const due = nextWateringDate(plant.lastWateredAt, plant.wateringIntervalDays);
+  due.setHours(REMINDER_HOUR, 0, 0, 0);
+  const now = new Date();
+  if (due.getTime() <= now.getTime()) {
+    return new Date(now.getTime() + 10_000);
   }
+  return due;
 };
 
-const writeLog = (log: Record<string, string>): void => {
-  localStorage.setItem(LOG_KEY, JSON.stringify(log));
-};
-
-export const requestPermission = async (): Promise<NotificationPermission> => {
-  if (!notificationsSupported()) return 'denied';
-  return Notification.requestPermission();
-};
-
-/** Notifies about overdue/due-today plants, at most once per plant per day. */
-export const notifyDuePlants = (plants: Plant[]): void => {
-  if (!notificationsSupported() || Notification.permission !== 'granted') return;
-
-  const today = todayISO();
-  const log = readLog();
-  let logChanged = false;
-
-  for (const plant of plants) {
-    const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays);
-    const status = waterStatus(daysLeft);
-    if (status !== 'overdue' && status !== 'today') continue;
-    if (log[plant.id] === today) continue;
-
-    const body =
-      status === 'overdue'
-        ? `${Math.abs(daysLeft)}일 지났어요. 물을 줄 시간이에요.`
-        : '오늘 물 줄 차례예요.';
-
-    new Notification(`🌱 ${plant.name}`, { body, tag: `plant-${plant.id}` });
-    log[plant.id] = today;
-    logChanged = true;
+/** Cancels any existing reminder for this plant and schedules the next one. Returns the new notification id. */
+export const scheduleWateringReminder = async (
+  plant: Pick<Plant, 'id' | 'name' | 'lastWateredAt' | 'wateringIntervalDays' | 'notificationId'>,
+): Promise<string> => {
+  if (plant.notificationId) {
+    await Notifications.cancelScheduledNotificationAsync(plant.notificationId).catch(() => {});
   }
 
-  if (logChanged) writeLog(log);
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: `🌱 ${plant.name}`,
+      body: '물 줄 시간이에요.',
+      data: { plantId: plant.id },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: reminderDateFor(plant),
+      channelId: Platform.OS === 'android' ? ANDROID_CHANNEL_ID : undefined,
+    },
+  });
+};
+
+export const cancelWateringReminder = async (notificationId?: string): Promise<void> => {
+  if (!notificationId) return;
+  await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => {});
 };

@@ -6,18 +6,31 @@ export const todayISO = (): string => {
   return now.toISOString().slice(0, 10);
 };
 
-const parseDateOnly = (iso: string): Date => {
+export const parseDateOnly = (iso: string): Date => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
+};
+
+export const toISODate = (date: Date): string => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+export const nextWateringDate = (lastWateredAt: string, intervalDays: number): Date => {
+  const due = parseDateOnly(lastWateredAt);
+  due.setDate(due.getDate() + intervalDays);
+  return due;
 };
 
 export const daysUntilNextWatering = (
   lastWateredAt: string,
   intervalDays: number,
 ): number => {
-  const last = parseDateOnly(lastWateredAt);
-  const due = new Date(last);
-  due.setDate(due.getDate() + intervalDays);
+  const due = nextWateringDate(lastWateredAt, intervalDays);
   const today = parseDateOnly(todayISO());
   const msPerDay = 1000 * 60 * 60 * 24;
   return Math.round((due.getTime() - today.getTime()) / msPerDay);

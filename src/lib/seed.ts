@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import type { Plant } from '../types';
 import { todayISO } from './date';
 
@@ -10,11 +11,10 @@ const daysAgo = (n: number): string => {
 
 export const seedPlants = (): Plant[] => [
   {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     name: '몬스테라',
     species: 'Monstera deliciosa',
     location: '거실 창가',
-    emoji: '🪴',
     wateringIntervalDays: 7,
     lastWateredAt: daysAgo(8),
     light: 'medium',
@@ -23,11 +23,10 @@ export const seedPlants = (): Plant[] => [
     waterCount: 3,
   },
   {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     name: '선인장',
     species: 'Cactus',
     location: '베란다',
-    emoji: '🌵',
     wateringIntervalDays: 21,
     lastWateredAt: daysAgo(5),
     light: 'high',
@@ -36,11 +35,10 @@ export const seedPlants = (): Plant[] => [
     waterCount: 1,
   },
   {
-    id: crypto.randomUUID(),
+    id: Crypto.randomUUID(),
     name: '스투키',
     species: 'Sansevieria',
     location: '침실',
-    emoji: '🌿',
     wateringIntervalDays: 14,
     lastWateredAt: daysAgo(1),
     light: 'low',

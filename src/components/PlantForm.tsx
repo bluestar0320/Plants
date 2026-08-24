@@ -1,10 +1,20 @@
-import { useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
-import type { LightNeed, PlantDraft } from '../types';
-import { todayISO } from '../lib/date';
-import { fileToResizedDataUrl } from '../lib/image';
-
-const EMOJI_OPTIONS = ['🪴', '🌱', '🌿', '🌵', '🌳', '🌲', '🍀', '🌾', '🪻', '🌷', '🌻'];
+import { useState } from 'react';
+import {
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import type { LightNeed, Plant, PlantDraft, SpeciesInfo } from '../types';
+import { parseDateOnly, todayISO, toISODate } from '../lib/date';
+import { pickAndSavePlantPhoto } from '../lib/image';
+import { colors, radius, spacing } from '../theme';
+import SpeciesSearch from './SpeciesSearch';
 
 const LIGHT_LABELS: Record<LightNeed, string> = {
   low: '음지',
@@ -13,7 +23,7 @@ const LIGHT_LABELS: Record<LightNeed, string> = {
 };
 
 interface Props {
-  initial?: PlantDraft;
+  initial?: PlantDraft & { speciesId?: number; careLevel?: string };
   submitLabel: string;
   onCancel: () => void;
   onSubmit: (draft: PlantDraft) => void;
@@ -23,39 +33,59 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [name, setName] = useState(initial?.name ?? '');
   const [species, setSpecies] = useState(initial?.species ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
-  const [emoji, setEmoji] = useState(initial?.emoji ?? EMOJI_OPTIONS[0]);
-  const [photo, setPhoto] = useState<string | undefined>(initial?.photo);
+  const [photoUri, setPhotoUri] = useState(initial?.photoUri);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [interval, setInterval] = useState(initial?.wateringIntervalDays ?? 7);
+  const [interval, setInterval] = useState(String(initial?.wateringIntervalDays ?? 7));
   const [lastWateredAt, setLastWateredAt] = useState(initial?.lastWateredAt ?? todayISO());
   const [light, setLight] = useState<LightNeed>(initial?.light ?? 'medium');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [careLevel, setCareLevel] = useState(initial?.careLevel);
+  const [speciesId, setSpeciesId] = useState(initial?.speciesId);
   const [error, setError] = useState('');
 
-  const handlePhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleApplySpecies = (info: SpeciesInfo) => {
+    setSpecies(info.scientificName || info.commonName);
+    setInterval(String(info.wateringIntervalDays));
+    setLight(info.light);
+    if (info.careNotes) setNotes(info.careNotes);
+    setCareLevel(info.careLevel);
+    setSpeciesId(info.id);
+  };
+
+  const handlePickPhoto = async () => {
     setPhotoBusy(true);
     setError('');
     try {
-      const dataUrl = await fileToResizedDataUrl(file);
-      setPhoto(dataUrl);
-    } catch {
-      setError('사진을 불러오지 못했어요. 다른 사진을 시도해주세요.');
+      const uri = await pickAndSavePlantPhoto();
+      if (uri) setPhotoUri(uri);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '사진을 불러오지 못했어요.');
     } finally {
       setPhotoBusy(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const openDatePicker = () => {
+    const value = parseDateOnly(lastWateredAt);
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value,
+        mode: 'date',
+        maximumDate: new Date(),
+        onChange: (event, date) => {
+          if (event.type === 'set' && date) setLastWateredAt(toISODate(date));
+        },
+      });
+    }
+  };
+
+  const handleSubmit = () => {
     if (!name.trim()) {
       setError('이름을 입력해주세요.');
       return;
     }
-    if (interval < 1) {
+    const intervalNum = Number(interval);
+    if (!Number.isFinite(intervalNum) || intervalNum < 1) {
       setError('물주기 주기는 1일 이상이어야 해요.');
       return;
     }
@@ -63,160 +93,210 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       name: name.trim(),
       species: species.trim() || undefined,
       location: location.trim() || undefined,
-      emoji,
-      photo,
-      wateringIntervalDays: interval,
+      photoUri,
+      wateringIntervalDays: Math.round(intervalNum),
       lastWateredAt,
       light,
       notes: notes.trim() || undefined,
+      careLevel,
+      speciesId,
     });
   };
 
   return (
-    <form className="plant-form" onSubmit={handleSubmit}>
-      <div className="field">
-        <label htmlFor="pf-name">이름 *</label>
-        <input
-          id="pf-name"
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.field}>
+        <Text style={styles.label}>이름 *</Text>
+        <TextInput
+          style={styles.input}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChangeText={setName}
           placeholder="예: 몬스테라"
-          autoFocus
+          placeholderTextColor={colors.textDim}
         />
-      </div>
+      </View>
 
-      <div className="field">
-        <label>사진</label>
-        <div className="photo-picker">
-          <div className="photo-preview">
-            {photo ? (
-              <img src={photo} alt="식물 사진 미리보기" />
-            ) : (
-              <span className="photo-preview-emoji">{emoji}</span>
+      <SpeciesSearch onApply={handleApplySpecies} />
+
+      <View style={styles.field}>
+        <Text style={styles.label}>사진</Text>
+        <View style={styles.photoRow}>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+          ) : (
+            <View style={styles.photoPreviewEmpty}>
+              <Text style={{ fontSize: 24 }}>🌱</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable style={styles.ghostBtn} onPress={handlePickPhoto} disabled={photoBusy}>
+              <Text style={styles.ghostBtnText}>
+                {photoBusy ? '처리 중…' : photoUri ? '사진 변경' : '사진 선택'}
+              </Text>
+            </Pressable>
+            {photoUri && (
+              <Pressable style={styles.ghostBtn} onPress={() => setPhotoUri(undefined)}>
+                <Text style={[styles.ghostBtnText, { color: colors.danger }]}>제거</Text>
+              </Pressable>
             )}
-          </div>
-          <div className="photo-picker-actions">
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={photoBusy}
-            >
-              {photoBusy ? '처리 중…' : photo ? '사진 변경' : '사진 선택'}
-            </button>
-            {photo && (
-              <button type="button" className="btn ghost danger" onClick={() => setPhoto(undefined)}>
-                제거
-              </button>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoChange}
-            hidden
-          />
-        </div>
-      </div>
+          </View>
+        </View>
+      </View>
 
-      <div className="field">
-        <label>아이콘 {photo && <span className="dim small">(사진이 없을 때 표시돼요)</span>}</label>
-        <div className="emoji-picker">
-          {EMOJI_OPTIONS.map((opt) => (
-            <button
-              type="button"
-              key={opt}
-              className={`emoji-option ${emoji === opt ? 'selected' : ''}`}
-              onClick={() => setEmoji(opt)}
-              aria-label={opt}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="pf-species">종류</label>
-          <input
-            id="pf-species"
+      <View style={styles.fieldRow}>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>종류</Text>
+          <TextInput
+            style={styles.input}
             value={species}
-            onChange={(e) => setSpecies(e.target.value)}
+            onChangeText={setSpecies}
             placeholder="예: Monstera deliciosa"
+            placeholderTextColor={colors.textDim}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="pf-location">위치</label>
-          <input
-            id="pf-location"
+        </View>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>위치</Text>
+          <TextInput
+            style={styles.input}
             value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            onChangeText={setLocation}
             placeholder="예: 거실 창가"
+            placeholderTextColor={colors.textDim}
           />
-        </div>
-      </div>
+        </View>
+      </View>
 
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="pf-interval">물주기 주기 (일)</label>
-          <input
-            id="pf-interval"
-            type="number"
-            min={1}
+      <View style={styles.fieldRow}>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>물주기 주기 (일)</Text>
+          <TextInput
+            style={styles.input}
             value={interval}
-            onChange={(e) => setInterval(Number(e.target.value))}
+            onChangeText={setInterval}
+            keyboardType="number-pad"
           />
-        </div>
-        <div className="field">
-          <label htmlFor="pf-last">마지막으로 물 준 날</label>
-          <input
-            id="pf-last"
-            type="date"
-            value={lastWateredAt}
-            max={todayISO()}
-            onChange={(e) => setLastWateredAt(e.target.value)}
-          />
-        </div>
-      </div>
+        </View>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>마지막으로 물 준 날</Text>
+          {Platform.OS === 'web' ? (
+            <TextInput
+              style={styles.input}
+              value={lastWateredAt}
+              onChangeText={setLastWateredAt}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textDim}
+            />
+          ) : (
+            <Pressable style={styles.input} onPress={openDatePicker}>
+              <Text style={{ color: colors.textHeading }}>{lastWateredAt}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
 
-      <div className="field">
-        <label htmlFor="pf-light">빛 요구량</label>
-        <select
-          id="pf-light"
-          value={light}
-          onChange={(e) => setLight(e.target.value as LightNeed)}
-        >
+      <View style={styles.field}>
+        <Text style={styles.label}>
+          빛 요구량{careLevel ? ` · 난이도: ${careLevel}` : ''}
+        </Text>
+        <View style={styles.chipRow}>
           {(Object.keys(LIGHT_LABELS) as LightNeed[]).map((key) => (
-            <option key={key} value={key}>
-              {LIGHT_LABELS[key]}
-            </option>
+            <Pressable
+              key={key}
+              style={[styles.chip, light === key && styles.chipSelected]}
+              onPress={() => setLight(key)}
+            >
+              <Text style={[styles.chipText, light === key && styles.chipTextSelected]}>
+                {LIGHT_LABELS[key]}
+              </Text>
+            </Pressable>
           ))}
-        </select>
-      </div>
+        </View>
+      </View>
 
-      <div className="field">
-        <label htmlFor="pf-notes">메모</label>
-        <textarea
-          id="pf-notes"
+      <View style={styles.field}>
+        <Text style={styles.label}>메모</Text>
+        <TextInput
+          style={[styles.input, styles.textarea]}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChangeText={setNotes}
           placeholder="관리 팁이나 특이사항을 적어두세요"
-          rows={2}
+          placeholderTextColor={colors.textDim}
+          multiline
+          numberOfLines={3}
         />
-      </div>
+      </View>
 
-      {error && <p className="form-error">{error}</p>}
+      {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <div className="form-actions">
-        <button type="button" className="btn ghost" onClick={onCancel}>
-          취소
-        </button>
-        <button type="submit" className="btn primary">
-          {submitLabel}
-        </button>
-      </div>
-    </form>
+      <View style={styles.actions}>
+        <Pressable style={styles.ghostBtn} onPress={onCancel}>
+          <Text style={styles.ghostBtnText}>취소</Text>
+        </Pressable>
+        <Pressable style={styles.primaryBtn} onPress={handleSubmit}>
+          <Text style={styles.primaryBtnText}>{submitLabel}</Text>
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { maxHeight: '100%' },
+  content: { padding: spacing.lg, gap: spacing.md },
+  field: { gap: spacing.xs },
+  fieldRow: { flexDirection: 'row', gap: spacing.md },
+  flex1: { flex: 1 },
+  label: { fontSize: 13, fontWeight: '600', color: colors.textDim },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: colors.bg,
+    color: colors.textHeading,
+    justifyContent: 'center',
+  },
+  textarea: { minHeight: 70, textAlignVertical: 'top' },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  photoPreview: { width: 64, height: 64, borderRadius: radius.md },
+  photoPreviewEmpty: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipRow: { flexDirection: 'row', gap: spacing.sm },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.bg,
+  },
+  chipSelected: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  chipText: { color: colors.text, fontSize: 13 },
+  chipTextSelected: { color: colors.greenDark, fontWeight: '600' },
+  error: { color: colors.danger, fontSize: 13 },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.xs },
+  ghostBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  ghostBtnText: { fontWeight: '600', color: colors.text, fontSize: 13 },
+  primaryBtn: {
+    backgroundColor: colors.green,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+});
