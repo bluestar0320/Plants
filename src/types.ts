@@ -6,6 +6,7 @@ export interface Plant {
   species?: string;
   location?: string;
   emoji: string;
+  photo?: string;
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)
   light: LightNeed;

@@ -22,9 +22,13 @@ export default function PlantCard({ plant, onWater, onEdit, onDelete }: Props) {
   return (
     <li className={`plant-card status-${status}`}>
       <div className="plant-card-top">
-        <span className="plant-emoji" aria-hidden="true">
-          {plant.emoji}
-        </span>
+        {plant.photo ? (
+          <img className="plant-photo" src={plant.photo} alt="" />
+        ) : (
+          <span className="plant-emoji" aria-hidden="true">
+            {plant.emoji}
+          </span>
+        )}
         <div className="plant-info">
           <h3>{plant.name}</h3>
           {(plant.species || plant.location) && (

@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import type { LightNeed, PlantDraft } from '../types';
 import { todayISO } from '../lib/date';
+import { fileToResizedDataUrl } from '../lib/image';
 
 const EMOJI_OPTIONS = ['🪴', '🌱', '🌿', '🌵', '🌳', '🌲', '🍀', '🌾', '🪻', '🌷', '🌻'];
 
@@ -23,11 +24,30 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [species, setSpecies] = useState(initial?.species ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [emoji, setEmoji] = useState(initial?.emoji ?? EMOJI_OPTIONS[0]);
+  const [photo, setPhoto] = useState<string | undefined>(initial?.photo);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [interval, setInterval] = useState(initial?.wateringIntervalDays ?? 7);
   const [lastWateredAt, setLastWateredAt] = useState(initial?.lastWateredAt ?? todayISO());
   const [light, setLight] = useState<LightNeed>(initial?.light ?? 'medium');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [error, setError] = useState('');
+
+  const handlePhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoBusy(true);
+    setError('');
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      setPhoto(dataUrl);
+    } catch {
+      setError('사진을 불러오지 못했어요. 다른 사진을 시도해주세요.');
+    } finally {
+      setPhotoBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -44,6 +64,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       species: species.trim() || undefined,
       location: location.trim() || undefined,
       emoji,
+      photo,
       wateringIntervalDays: interval,
       lastWateredAt,
       light,
@@ -65,7 +86,42 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       </div>
 
       <div className="field">
-        <label>아이콘</label>
+        <label>사진</label>
+        <div className="photo-picker">
+          <div className="photo-preview">
+            {photo ? (
+              <img src={photo} alt="식물 사진 미리보기" />
+            ) : (
+              <span className="photo-preview-emoji">{emoji}</span>
+            )}
+          </div>
+          <div className="photo-picker-actions">
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoBusy}
+            >
+              {photoBusy ? '처리 중…' : photo ? '사진 변경' : '사진 선택'}
+            </button>
+            {photo && (
+              <button type="button" className="btn ghost danger" onClick={() => setPhoto(undefined)}>
+                제거
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+            hidden
+          />
+        </div>
+      </div>
+
+      <div className="field">
+        <label>아이콘 {photo && <span className="dim small">(사진이 없을 때 표시돼요)</span>}</label>
         <div className="emoji-picker">
           {EMOJI_OPTIONS.map((opt) => (
             <button
