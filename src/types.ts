@@ -6,6 +6,9 @@ export interface Plant {
   species?: string;
   location?: string;
   isOutdoor?: boolean;
+  lastRepottedAt?: string; // ISO date
+  fertilizeIntervalDays?: number;
+  lastFertilizedAt?: string; // ISO date
   photoUri?: string;
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)
@@ -14,6 +17,8 @@ export interface Plant {
   careLevel?: string;
   createdAt: string; // ISO date
   waterCount: number;
+  /** Most recent watering dates first, capped at a small history length. */
+  wateringHistory?: string[];
   notificationId?: string;
   /** Perenual species id, if this plant was created from a species DB lookup. */
   speciesId?: number;

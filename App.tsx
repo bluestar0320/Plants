@@ -8,6 +8,7 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -44,6 +45,20 @@ import { colors, radius, spacing } from './src/theme';
 
 const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
 const UNSPECIFIED_LOCATION = '위치 미지정';
+const WATERING_HISTORY_MAX = 60;
+
+const waterPlant = (plant: Plant, dateISO: string): Plant => {
+  const history = plant.wateringHistory ?? [];
+  const alreadyLoggedToday = history[0] === dateISO;
+  return {
+    ...plant,
+    lastWateredAt: dateISO,
+    waterCount: plant.waterCount + 1,
+    wateringHistory: alreadyLoggedToday
+      ? history
+      : [dateISO, ...history].slice(0, WATERING_HISTORY_MAX),
+  };
+};
 
 configureNotificationHandler();
 
@@ -61,6 +76,9 @@ function PlantsApp() {
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'location'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [weatherEnabled, setWeatherEnabled] = useState(false);
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
   const [weatherBusy, setWeatherBusy] = useState(false);
@@ -118,15 +136,26 @@ function PlantsApp() {
     });
   }, [plants]);
 
+  const filteredPlants = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sortedPlants;
+    return sortedPlants.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.species ?? '').toLowerCase().includes(q) ||
+        (p.location ?? '').toLowerCase().includes(q),
+    );
+  }, [sortedPlants, searchQuery]);
+
   const locationSections = useMemo(() => {
     const groups = new Map<string, Plant[]>();
-    for (const plant of sortedPlants) {
+    for (const plant of filteredPlants) {
       const key = plant.location?.trim() || UNSPECIFIED_LOCATION;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(plant);
     }
     return Array.from(groups.entries()).map(([title, data]) => ({ title, data }));
-  }, [sortedPlants]);
+  }, [filteredPlants]);
 
   const stats = useMemo(() => {
     const list = plants ?? [];
@@ -152,6 +181,7 @@ function PlantsApp() {
       id: Crypto.randomUUID(),
       createdAt: todayISO(),
       waterCount: 0,
+      wateringHistory: [draft.lastWateredAt],
     };
     plant = await maybeSchedule(plant);
     setPlants((prev) => [...(prev ?? []), plant]);
@@ -172,13 +202,20 @@ function PlantsApp() {
   const handleWater = async (id: string) => {
     const target = (plants ?? []).find((p) => p.id === id);
     if (!target) return;
-    let updated: Plant = {
-      ...target,
-      lastWateredAt: todayISO(),
-      waterCount: target.waterCount + 1,
-    };
-    updated = await maybeSchedule(updated);
+    const updated = await maybeSchedule(waterPlant(target, todayISO()));
     setPlants((prev) => (prev ?? []).map((p) => (p.id === id ? updated : p)));
+  };
+
+  const handleRepot = (id: string) => {
+    setPlants((prev) =>
+      (prev ?? []).map((p) => (p.id === id ? { ...p, lastRepottedAt: todayISO() } : p)),
+    );
+  };
+
+  const handleFertilize = (id: string) => {
+    setPlants((prev) =>
+      (prev ?? []).map((p) => (p.id === id ? { ...p, lastFertilizedAt: todayISO() } : p)),
+    );
   };
 
   const handleDelete = (id: string) => {
@@ -254,11 +291,33 @@ function PlantsApp() {
   const unwateredOutdoorToday = outdoorPlants.filter((p) => p.lastWateredAt !== todayISO());
   const showRainSuggestion = weatherEnabled && !!weather?.isRaining && unwateredOutdoorToday.length > 0;
 
+  const handleToggleSelectionMode = () => {
+    setSelectionMode((prev) => !prev);
+    setSelectedIds(new Set());
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkWater = async () => {
+    const today = todayISO();
+    const targets = (plants ?? []).filter((p) => selectedIds.has(p.id));
+    const results = await Promise.all(targets.map((p) => maybeSchedule(waterPlant(p, today))));
+    const byId = new Map(results.map((p) => [p.id, p]));
+    setPlants((prev) => (prev ?? []).map((p) => byId.get(p.id) ?? p));
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
   const handleMarkOutdoorWatered = async () => {
     const today = todayISO();
-    const results = await Promise.all(
-      unwateredOutdoorToday.map((p) => maybeSchedule({ ...p, lastWateredAt: today, waterCount: p.waterCount + 1 })),
-    );
+    const results = await Promise.all(unwateredOutdoorToday.map((p) => maybeSchedule(waterPlant(p, today))));
     const byId = new Map(results.map((p) => [p.id, p]));
     setPlants((prev) => (prev ?? []).map((p) => byId.get(p.id) ?? p));
   };
@@ -296,6 +355,11 @@ function PlantsApp() {
           <Pressable style={styles.ghostBtn} onPress={handleToggleNotifications}>
             <Text style={styles.ghostBtnText}>{notifEnabled ? '🔔 알림 켜짐' : '🔕 알림 받기'}</Text>
           </Pressable>
+          {plants.length > 0 && (
+            <Pressable style={styles.ghostBtn} onPress={handleToggleSelectionMode}>
+              <Text style={styles.ghostBtnText}>{selectionMode ? '선택 취소' : '✅ 여러 개 선택'}</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -346,6 +410,16 @@ function PlantsApp() {
         </View>
       ) : (
         <>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="🔍 이름·종류·위치로 검색"
+              placeholderTextColor={colors.textDim}
+            />
+          </View>
+
           <View style={styles.viewToggleRow}>
             <Pressable
               style={[styles.viewToggleChip, viewMode === 'all' && styles.viewToggleChipActive]}
@@ -365,13 +439,38 @@ function PlantsApp() {
             </Pressable>
           </View>
 
-          {viewMode === 'all' ? (
+          {selectionMode && (
+            <View style={styles.bulkBar}>
+              <Text style={styles.bulkBarText}>{selectedIds.size}개 선택됨</Text>
+              <Pressable
+                style={[styles.primaryBtn, selectedIds.size === 0 && styles.btnDisabled]}
+                onPress={handleBulkWater}
+                disabled={selectedIds.size === 0}
+              >
+                <Text style={styles.primaryBtnText}>💧 선택한 식물 물 주기</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {filteredPlants.length === 0 ? (
+            <Text style={styles.noResults}>"{searchQuery}"에 맞는 식물이 없어요.</Text>
+          ) : viewMode === 'all' ? (
             <FlatList
-              data={sortedPlants}
+              data={filteredPlants}
               keyExtractor={(p) => p.id}
               contentContainerStyle={styles.list}
               renderItem={({ item }) => (
-                <PlantCard plant={item} onWater={handleWater} onEdit={setEditingPlant} onDelete={handleDelete} />
+                <PlantCard
+                  plant={item}
+                  onWater={handleWater}
+                  onEdit={setEditingPlant}
+                  onDelete={handleDelete}
+                  onRepot={handleRepot}
+                  onFertilize={handleFertilize}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(item.id)}
+                  onToggleSelect={handleToggleSelect}
+                />
               )}
             />
           ) : (
@@ -383,7 +482,17 @@ function PlantsApp() {
                 <Text style={styles.sectionHeader}>{section.title}</Text>
               )}
               renderItem={({ item }) => (
-                <PlantCard plant={item} onWater={handleWater} onEdit={setEditingPlant} onDelete={handleDelete} />
+                <PlantCard
+                  plant={item}
+                  onWater={handleWater}
+                  onEdit={setEditingPlant}
+                  onDelete={handleDelete}
+                  onRepot={handleRepot}
+                  onFertilize={handleFertilize}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(item.id)}
+                  onToggleSelect={handleToggleSelect}
+                />
               )}
             />
           )}
@@ -475,6 +584,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: 12,
     paddingVertical: 6,
+  },
+  searchRow: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: colors.surface,
+    color: colors.textHeading,
+  },
+  bulkBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  bulkBarText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  btnDisabled: { opacity: 0.4 },
+  noResults: {
+    textAlign: 'center',
+    color: colors.textDim,
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
   viewToggleRow: {
     flexDirection: 'row',

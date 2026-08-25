@@ -1,7 +1,17 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Plant } from '../types';
-import { daysUntilNextWatering, formatDate, formatDaysLeft, waterStatus } from '../lib/date';
+import {
+  daysUntilDue,
+  daysUntilNextWatering,
+  formatDate,
+  formatDaysLeft,
+  monthsSince,
+  waterStatus,
+} from '../lib/date';
 import { colors, radius, spacing } from '../theme';
+
+const REPOT_REMINDER_MONTHS = 12;
 
 const STATUS_LABEL: Record<string, string> = {
   overdue: '물 주세요!',
@@ -22,16 +32,45 @@ interface Props {
   onWater: (id: string) => void;
   onEdit: (plant: Plant) => void;
   onDelete: (id: string) => void;
+  onRepot: (id: string) => void;
+  onFertilize: (id: string) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export default function PlantCard({ plant, onWater, onEdit, onDelete }: Props) {
+export default function PlantCard({
+  plant,
+  onWater,
+  onEdit,
+  onDelete,
+  onRepot,
+  onFertilize,
+  selectionMode,
+  selected,
+  onToggleSelect,
+}: Props) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays);
   const status = waterStatus(daysLeft);
   const statusColor = STATUS_COLOR[status];
+  const repotMonths = plant.lastRepottedAt ? monthsSince(plant.lastRepottedAt) : null;
+  const repotDue = repotMonths !== null && repotMonths >= REPOT_REMINDER_MONTHS;
+  const fertilizeTracked = !!plant.fertilizeIntervalDays;
+  const fertilizeDaysLeft =
+    fertilizeTracked && plant.lastFertilizedAt
+      ? daysUntilDue(plant.lastFertilizedAt, plant.fertilizeIntervalDays!)
+      : null;
+  const fertilizeDue = fertilizeDaysLeft !== null && fertilizeDaysLeft <= 0;
 
-  return (
-    <View style={[styles.card, { borderLeftColor: statusColor.border }]}>
+  const content = (
+    <View style={[styles.card, { borderLeftColor: statusColor.border }, selected && styles.cardSelected]}>
       <View style={styles.top}>
+        {selectionMode && (
+          <View style={[styles.checkbox, selected && styles.checkboxChecked]}>
+            {selected && <Text style={styles.checkboxMark}>✓</Text>}
+          </View>
+        )}
         {plant.photoUri ? (
           <Image source={{ uri: plant.photoUri }} style={styles.photo} />
         ) : (
@@ -43,9 +82,11 @@ export default function PlantCard({ plant, onWater, onEdit, onDelete }: Props) {
           <Text style={styles.name}>
             {plant.name} <Text style={styles.envIcon}>{plant.isOutdoor ? '🌳' : '🏠'}</Text>
           </Text>
-          {(plant.species || plant.location) && (
+          {(plant.species || plant.location || plant.careLevel) && (
             <Text style={styles.meta} numberOfLines={1}>
-              {[plant.species, plant.location].filter(Boolean).join(' · ')}
+              {[plant.species, plant.location, plant.careLevel && `난이도: ${plant.careLevel}`]
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           )}
         </View>
@@ -60,21 +101,94 @@ export default function PlantCard({ plant, onWater, onEdit, onDelete }: Props) {
         <Text style={styles.dueLineStrong}>{formatDaysLeft(daysLeft)}</Text>
         <Text style={styles.dim}> · {plant.wateringIntervalDays}일마다</Text>
       </Text>
-      <Text style={styles.small}>마지막 급수: {formatDate(plant.lastWateredAt)}</Text>
+      <Pressable disabled={selectionMode} onPress={() => setHistoryOpen(true)}>
+        <Text style={styles.small}>
+          마지막 급수: {formatDate(plant.lastWateredAt)}
+          {!selectionMode && '  ·  기록 보기'}
+        </Text>
+      </Pressable>
+      {!selectionMode && (
+        <View style={styles.repotRow}>
+          <Text style={[styles.small, repotDue && styles.repotDueText]}>
+            🪴 분갈이:{' '}
+            {plant.lastRepottedAt
+              ? `${formatDate(plant.lastRepottedAt)} (${repotMonths}개월 전)${repotDue ? ' · 검토해보세요' : ''}`
+              : '기록 없음'}
+          </Text>
+          <Pressable onPress={() => onRepot(plant.id)}>
+            <Text style={styles.repotLink}>분갈이했어요</Text>
+          </Pressable>
+        </View>
+      )}
+      {!selectionMode && fertilizeTracked && (
+        <View style={styles.repotRow}>
+          <Text style={[styles.small, fertilizeDue && styles.repotDueText]}>
+            🌿 비료:{' '}
+            {plant.lastFertilizedAt
+              ? `${fertilizeDaysLeft! < 0 ? `${Math.abs(fertilizeDaysLeft!)}일 지남` : fertilizeDaysLeft === 0 ? '오늘' : `${fertilizeDaysLeft}일 후`}`
+              : '기록 없음'}
+          </Text>
+          <Pressable onPress={() => onFertilize(plant.id)}>
+            <Text style={styles.repotLink}>비료 줬어요</Text>
+          </Pressable>
+        </View>
+      )}
       {!!plant.notes && <Text style={styles.notes}>{plant.notes}</Text>}
 
-      <View style={styles.actions}>
-        <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onWater(plant.id)}>
-          <Text style={styles.btnPrimaryText}>💧 물 줬어요</Text>
-        </Pressable>
-        <Pressable style={styles.btn} onPress={() => onEdit(plant)}>
-          <Text style={styles.btnText}>수정</Text>
-        </Pressable>
-        <Pressable style={styles.btn} onPress={() => onDelete(plant.id)}>
-          <Text style={[styles.btnText, { color: colors.danger }]}>삭제</Text>
-        </Pressable>
-      </View>
+      {!selectionMode && (
+        <View style={styles.actions}>
+          <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onWater(plant.id)}>
+            <Text style={styles.btnPrimaryText}>💧 물 줬어요</Text>
+          </Pressable>
+          <Pressable style={styles.btn} onPress={() => onEdit(plant)}>
+            <Text style={styles.btnText}>수정</Text>
+          </Pressable>
+          <Pressable style={styles.btn} onPress={() => onDelete(plant.id)}>
+            <Text style={[styles.btnText, { color: colors.danger }]}>삭제</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
+  );
+
+  const historyModal = (
+    <Modal visible={historyOpen} animationType="slide" transparent onRequestClose={() => setHistoryOpen(false)}>
+      <View style={styles.historyOverlay}>
+        <View style={styles.historySheet}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>{plant.name} 급수 기록</Text>
+            <Pressable onPress={() => setHistoryOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          {!plant.wateringHistory || plant.wateringHistory.length === 0 ? (
+            <Text style={styles.small}>기록이 없어요.</Text>
+          ) : (
+            <FlatList
+              data={plant.wateringHistory}
+              keyExtractor={(date, i) => `${date}-${i}`}
+              style={styles.historyList}
+              renderItem={({ item }) => <Text style={styles.historyItem}>💧 {formatDate(item)}</Text>}
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
+  if (selectionMode) {
+    return (
+      <>
+        <Pressable onPress={() => onToggleSelect?.(plant.id)}>{content}</Pressable>
+        {historyModal}
+      </>
+    );
+  }
+  return (
+    <>
+      {content}
+      {historyModal}
+    </>
   );
 }
 
@@ -89,6 +203,19 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginBottom: spacing.md,
   },
+  cardSelected: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: { borderColor: colors.green, backgroundColor: colors.green },
+  checkboxMark: { color: '#fff', fontSize: 13, fontWeight: '700' },
   top: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -123,6 +250,14 @@ const styles = StyleSheet.create({
   dueLineStrong: { fontWeight: '700', color: colors.textHeading },
   dim: { color: colors.textDim },
   small: { fontSize: 12.5, color: colors.textDim },
+  repotRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  repotDueText: { color: colors.amber, fontWeight: '600' },
+  repotLink: { fontSize: 12.5, color: colors.green, fontWeight: '600' },
   notes: {
     fontSize: 13,
     color: colors.textDim,
@@ -143,4 +278,32 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: colors.green, borderColor: colors.green },
   btnPrimaryText: { color: '#fff', fontWeight: '600', fontSize: 13 },
   btnText: { fontWeight: '600', fontSize: 13, color: colors.text },
+  historyOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  historySheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.lg,
+    maxHeight: '70%',
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.textHeading },
+  modalClose: { fontSize: 18, color: colors.textDim, padding: spacing.xs },
+  historyList: { maxHeight: 300 },
+  historyItem: {
+    fontSize: 14,
+    color: colors.text,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
 });

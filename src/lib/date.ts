@@ -36,6 +36,9 @@ export const daysUntilNextWatering = (
   return Math.round((due.getTime() - today.getTime()) / msPerDay);
 };
 
+/** Generic "days until an interval-based care action is due" — same math as watering, reused for fertilizing etc. */
+export const daysUntilDue = daysUntilNextWatering;
+
 export const waterStatus = (daysLeft: number): WaterStatus => {
   if (daysLeft < 0) return 'overdue';
   if (daysLeft === 0) return 'today';
@@ -48,6 +51,16 @@ export const formatDaysLeft = (daysLeft: number): string => {
   if (daysLeft === 0) return '오늘 줘야 해요';
   if (daysLeft === 1) return '내일';
   return `${daysLeft}일 후`;
+};
+
+export const monthsSince = (iso: string): number => {
+  const then = parseDateOnly(iso);
+  const now = parseDateOnly(todayISO());
+  return (
+    (now.getFullYear() - then.getFullYear()) * 12 +
+    (now.getMonth() - then.getMonth()) -
+    (now.getDate() < then.getDate() ? 1 : 0)
+  );
 };
 
 export const formatDate = (iso: string): string => {

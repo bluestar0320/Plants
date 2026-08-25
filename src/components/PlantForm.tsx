@@ -43,6 +43,11 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [lastWateredAt, setLastWateredAt] = useState(initial?.lastWateredAt ?? todayISO());
   const [light, setLight] = useState<LightNeed>(initial?.light ?? 'medium');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [lastRepottedAt, setLastRepottedAt] = useState(initial?.lastRepottedAt);
+  const [fertilizeInterval, setFertilizeInterval] = useState(
+    initial?.fertilizeIntervalDays ? String(initial.fertilizeIntervalDays) : '',
+  );
+  const [lastFertilizedAt, setLastFertilizedAt] = useState(initial?.lastFertilizedAt);
   const [careLevel, setCareLevel] = useState(initial?.careLevel);
   const [speciesId, setSpeciesId] = useState(initial?.speciesId);
   const [error, setError] = useState('');
@@ -69,18 +74,16 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
     }
   };
 
-  const openDatePicker = () => {
-    const value = parseDateOnly(lastWateredAt);
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value,
-        mode: 'date',
-        maximumDate: new Date(),
-        onChange: (event, date) => {
-          if (event.type === 'set' && date) setLastWateredAt(toISODate(date));
-        },
-      });
-    }
+  const openDateField = (currentValue: string, onChange: (iso: string) => void) => {
+    if (Platform.OS !== 'android') return;
+    DateTimePickerAndroid.open({
+      value: parseDateOnly(currentValue),
+      mode: 'date',
+      maximumDate: new Date(),
+      onChange: (event, date) => {
+        if (event.type === 'set' && date) onChange(toISODate(date));
+      },
+    });
   };
 
   const handleSubmit = () => {
@@ -91,6 +94,10 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
     const intervalNum = Number(interval);
     if (!Number.isFinite(intervalNum) || intervalNum < 1) {
       setError('물주기 주기는 1일 이상이어야 해요.');
+      return;
+    }
+    if (fertilizeInterval.trim() && (!Number.isFinite(Number(fertilizeInterval)) || Number(fertilizeInterval) < 1)) {
+      setError('비료 주기는 1일 이상이어야 해요.');
       return;
     }
     onSubmit({
@@ -105,6 +112,9 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       notes: notes.trim() || undefined,
       careLevel,
       speciesId,
+      lastRepottedAt,
+      fertilizeIntervalDays: fertilizeInterval.trim() ? Math.round(Number(fertilizeInterval)) : undefined,
+      lastFertilizedAt: fertilizeInterval.trim() ? lastFertilizedAt : undefined,
     });
   };
 
@@ -210,11 +220,77 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
               placeholderTextColor={colors.textDim}
             />
           ) : (
-            <Pressable style={styles.input} onPress={openDatePicker}>
+            <Pressable style={styles.input} onPress={() => openDateField(lastWateredAt, setLastWateredAt)}>
               <Text style={{ color: colors.textHeading }}>{lastWateredAt}</Text>
             </Pressable>
           )}
         </View>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>마지막 분갈이 (선택)</Text>
+        <View style={styles.photoRow}>
+          {Platform.OS === 'web' ? (
+            <TextInput
+              style={[styles.input, styles.flex1]}
+              value={lastRepottedAt ?? ''}
+              onChangeText={(text) => setLastRepottedAt(text || undefined)}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textDim}
+            />
+          ) : (
+            <Pressable
+              style={[styles.input, styles.flex1]}
+              onPress={() => openDateField(lastRepottedAt ?? todayISO(), setLastRepottedAt)}
+            >
+              <Text style={{ color: lastRepottedAt ? colors.textHeading : colors.textDim }}>
+                {lastRepottedAt ?? '기록 없음 · 탭해서 설정'}
+              </Text>
+            </Pressable>
+          )}
+          {lastRepottedAt && (
+            <Pressable style={styles.ghostBtn} onPress={() => setLastRepottedAt(undefined)}>
+              <Text style={[styles.ghostBtnText, { color: colors.danger }]}>지우기</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.fieldRow}>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>비료 주기 (일, 선택)</Text>
+          <TextInput
+            style={styles.input}
+            value={fertilizeInterval}
+            onChangeText={setFertilizeInterval}
+            placeholder="비워두면 추적 안 함"
+            placeholderTextColor={colors.textDim}
+            keyboardType="number-pad"
+          />
+        </View>
+        {!!fertilizeInterval.trim() && (
+          <View style={[styles.field, styles.flex1]}>
+            <Text style={styles.label}>마지막 시비일</Text>
+            {Platform.OS === 'web' ? (
+              <TextInput
+                style={styles.input}
+                value={lastFertilizedAt ?? ''}
+                onChangeText={(text) => setLastFertilizedAt(text || undefined)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textDim}
+              />
+            ) : (
+              <Pressable
+                style={styles.input}
+                onPress={() => openDateField(lastFertilizedAt ?? todayISO(), setLastFertilizedAt)}
+              >
+                <Text style={{ color: lastFertilizedAt ? colors.textHeading : colors.textDim }}>
+                  {lastFertilizedAt ?? '탭해서 설정'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.field}>
