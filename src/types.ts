@@ -9,7 +9,8 @@ export interface Plant {
   lastRepottedAt?: string; // ISO date
   fertilizeIntervalDays?: number;
   lastFertilizedAt?: string; // ISO date
-  photoUri?: string;
+  /** Local photo URIs; the first is the cover photo shown on the card. */
+  photos?: string[];
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)
   light: LightNeed;

@@ -194,9 +194,8 @@ function PlantsApp() {
 
   const handleEditSubmit = async (draft: PlantDraft) => {
     if (!editingPlant) return;
-    if (editingPlant.photoUri && editingPlant.photoUri !== draft.photoUri) {
-      deletePlantPhoto(editingPlant.photoUri);
-    }
+    const removedPhotos = (editingPlant.photos ?? []).filter((uri) => !(draft.photos ?? []).includes(uri));
+    removedPhotos.forEach(deletePlantPhoto);
     let updated: Plant = { ...editingPlant, ...draft };
     updated = await maybeSchedule(updated);
     setPlants((prev) => (prev ?? []).map((p) => (p.id === updated.id ? updated : p)));
@@ -232,7 +231,7 @@ function PlantsApp() {
           const target = (plants ?? []).find((p) => p.id === id);
           if (target) {
             await cancelWateringReminder(target.notificationId);
-            deletePlantPhoto(target.photoUri);
+            (target.photos ?? []).forEach(deletePlantPhoto);
           }
           setPlants((prev) => (prev ?? []).filter((p) => p.id !== id));
         },

@@ -36,7 +36,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [species, setSpecies] = useState(initial?.species ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [isOutdoor, setIsOutdoor] = useState(initial?.isOutdoor ?? false);
-  const [photoUri, setPhotoUri] = useState(initial?.photoUri);
+  const [photos, setPhotos] = useState<string[]>(initial?.photos ?? []);
   const [lightMeterOpen, setLightMeterOpen] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [interval, setInterval] = useState(String(initial?.wateringIntervalDays ?? 7));
@@ -66,12 +66,16 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
     setError('');
     try {
       const uri = await pickAndSavePlantPhoto();
-      if (uri) setPhotoUri(uri);
+      if (uri) setPhotos((prev) => [...prev, uri]);
     } catch (e) {
       setError(e instanceof Error ? e.message : '사진을 불러오지 못했어요.');
     } finally {
       setPhotoBusy(false);
     }
+  };
+
+  const handleRemovePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p !== uri));
   };
 
   const openDateField = (currentValue: string, onChange: (iso: string) => void) => {
@@ -105,7 +109,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       species: species.trim() || undefined,
       location: location.trim() || undefined,
       isOutdoor,
-      photoUri,
+      photos,
       wateringIntervalDays: Math.round(intervalNum),
       lastWateredAt,
       light,
@@ -134,28 +138,22 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       <SpeciesSearch onApply={handleApplySpecies} />
 
       <View style={styles.field}>
-        <Text style={styles.label}>사진</Text>
-        <View style={styles.photoRow}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-          ) : (
-            <View style={styles.photoPreviewEmpty}>
-              <Text style={{ fontSize: 24 }}>🌱</Text>
-            </View>
-          )}
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Pressable style={styles.ghostBtn} onPress={handlePickPhoto} disabled={photoBusy}>
-              <Text style={styles.ghostBtnText}>
-                {photoBusy ? '처리 중…' : photoUri ? '사진 변경' : '사진 선택'}
-              </Text>
+        <Text style={styles.label}>사진{photos.length ? ` (${photos.length})` : ''}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.photoThumbRow}>
+            {photos.map((uri) => (
+              <View key={uri} style={styles.photoThumbWrap}>
+                <Image source={{ uri }} style={styles.photoPreview} />
+                <Pressable style={styles.photoRemoveBadge} onPress={() => handleRemovePhoto(uri)}>
+                  <Text style={styles.photoRemoveBadgeText}>✕</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Pressable style={styles.photoAddTile} onPress={handlePickPhoto} disabled={photoBusy}>
+              <Text style={styles.photoAddTileText}>{photoBusy ? '처리 중…' : '+ 추가'}</Text>
             </Pressable>
-            {photoUri && (
-              <Pressable style={styles.ghostBtn} onPress={() => setPhotoUri(undefined)}>
-                <Text style={[styles.ghostBtnText, { color: colors.danger }]}>제거</Text>
-              </Pressable>
-            )}
           </View>
-        </View>
+        </ScrollView>
       </View>
 
       <View style={styles.fieldRow}>
@@ -392,6 +390,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  photoThumbRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  photoThumbWrap: { position: 'relative' },
+  photoRemoveBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoRemoveBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  photoAddTile: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoAddTileText: { fontSize: 11, fontWeight: '600', color: colors.textDim, textAlign: 'center' },
   chipRow: { flexDirection: 'row', gap: spacing.sm },
   chip: {
     borderWidth: 1,

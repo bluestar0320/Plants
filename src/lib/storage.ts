@@ -9,12 +9,19 @@ const NOTIFICATIONS_ENABLED_KEY = 'plants.app.notifications-enabled.v1';
 const WEATHER_ENABLED_KEY = 'plants.app.weather-enabled.v1';
 const WEATHER_CACHE_KEY = 'plants.app.weather-cache.v1';
 
+/** Migrates records saved before photos became a gallery array. */
+const migratePlant = (plant: Plant & { photoUri?: string }): Plant => {
+  if (!plant.photoUri) return plant;
+  const { photoUri, ...rest } = plant;
+  return { ...rest, photos: rest.photos ?? [photoUri] };
+};
+
 export const loadPlants = async (): Promise<Plant[]> => {
   try {
     const raw = await AsyncStorage.getItem(PLANTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(migratePlant) : [];
   } catch {
     return [];
   }

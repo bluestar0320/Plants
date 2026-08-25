@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import type { Plant } from '../types';
 import {
   daysUntilDue,
@@ -50,7 +59,9 @@ export default function PlantCard({
   selected,
   onToggleSelect,
 }: Props) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays);
   const status = waterStatus(daysLeft);
   const statusColor = STATUS_COLOR[status];
@@ -62,6 +73,7 @@ export default function PlantCard({
       ? daysUntilDue(plant.lastFertilizedAt, plant.fertilizeIntervalDays!)
       : null;
   const fertilizeDue = fertilizeDaysLeft !== null && fertilizeDaysLeft <= 0;
+  const photos = plant.photos ?? [];
 
   const content = (
     <View style={[styles.card, { borderLeftColor: statusColor.border }, selected && styles.cardSelected]}>
@@ -71,13 +83,22 @@ export default function PlantCard({
             {selected && <Text style={styles.checkboxMark}>✓</Text>}
           </View>
         )}
-        {plant.photoUri ? (
-          <Image source={{ uri: plant.photoUri }} style={styles.photo} />
-        ) : (
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoPlaceholderText}>🌱</Text>
-          </View>
-        )}
+        <Pressable disabled={selectionMode || photos.length === 0} onPress={() => setGalleryOpen(true)}>
+          {photos[0] ? (
+            <View>
+              <Image source={{ uri: photos[0] }} style={styles.photo} />
+              {photos.length > 1 && (
+                <View style={styles.photoCountBadge}>
+                  <Text style={styles.photoCountText}>{photos.length}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.photoPlaceholder}>
+              <Text style={styles.photoPlaceholderText}>🌱</Text>
+            </View>
+          )}
+        </Pressable>
         <View style={styles.info}>
           <Text style={styles.name}>
             {plant.name} <Text style={styles.envIcon}>{plant.isOutdoor ? '🌳' : '🏠'}</Text>
@@ -176,11 +197,38 @@ export default function PlantCard({
     </Modal>
   );
 
+  const galleryModal = (
+    <Modal visible={galleryOpen} animationType="fade" transparent onRequestClose={() => setGalleryOpen(false)}>
+      <View style={styles.galleryOverlay}>
+        <Pressable style={styles.galleryClose} onPress={() => setGalleryOpen(false)}>
+          <Text style={styles.galleryCloseText}>✕</Text>
+        </Pressable>
+        <FlatList
+          style={styles.galleryList}
+          data={photos}
+          keyExtractor={(uri, i) => `${uri}-${i}`}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <View style={[styles.galleryPage, { width: windowWidth, height: windowHeight }]}>
+              <Image source={{ uri: item }} style={styles.galleryImage} resizeMode="contain" />
+            </View>
+          )}
+        />
+        {photos.length > 1 && (
+          <Text style={styles.galleryCount}>{photos.length}장의 사진</Text>
+        )}
+      </View>
+    </Modal>
+  );
+
   if (selectionMode) {
     return (
       <>
         <Pressable onPress={() => onToggleSelect?.(plant.id)}>{content}</Pressable>
         {historyModal}
+        {galleryModal}
       </>
     );
   }
@@ -188,6 +236,7 @@ export default function PlantCard({
     <>
       {content}
       {historyModal}
+      {galleryModal}
     </>
   );
 }
@@ -305,5 +354,41 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  photoCountBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: colors.textHeading,
+    borderRadius: radius.pill,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  galleryOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryList: { flex: 1, width: '100%' },
+  galleryClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    zIndex: 1,
+    padding: spacing.sm,
+  },
+  galleryCloseText: { color: '#fff', fontSize: 22 },
+  galleryPage: { alignItems: 'center', justifyContent: 'center' },
+  galleryImage: { width: '100%', height: '80%' },
+  galleryCount: {
+    position: 'absolute',
+    bottom: 40,
+    color: '#fff',
+    fontSize: 13,
   },
 });
