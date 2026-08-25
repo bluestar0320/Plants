@@ -41,6 +41,10 @@ export const saveSpeciesToCache = async (info: SpeciesInfo): Promise<void> => {
   await AsyncStorage.setItem(SPECIES_CACHE_KEY, JSON.stringify(cache));
 };
 
+export const replaceSpeciesCache = async (cache: Record<number, SpeciesInfo>): Promise<void> => {
+  await AsyncStorage.setItem(SPECIES_CACHE_KEY, JSON.stringify(cache));
+};
+
 export const hasSeeded = async (): Promise<boolean> => (await AsyncStorage.getItem(SEEDED_KEY)) === '1';
 
 export const markSeeded = async (): Promise<void> => {

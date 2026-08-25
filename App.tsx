@@ -24,9 +24,11 @@ import {
   markSeeded,
   savePlants,
   saveCachedWeather,
+  replaceSpeciesCache,
   setNotificationsEnabled as persistNotificationsEnabled,
   setWeatherEnabled as persistWeatherEnabled,
 } from './src/lib/storage';
+import { exportBackup, importBackup, ImportCanceledError } from './src/lib/backup';
 import { seedPlants } from './src/lib/seed';
 import { daysUntilNextWatering, todayISO } from './src/lib/date';
 import {
@@ -83,6 +85,8 @@ function PlantsApp() {
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [lightMeterOpen, setLightMeterOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -287,6 +291,49 @@ function PlantsApp() {
     }
   };
 
+  const handleExport = async () => {
+    setExportBusy(true);
+    try {
+      await exportBackup();
+    } catch (e) {
+      Alert.alert('내보내기 실패', e instanceof Error ? e.message : undefined);
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const handleImport = async () => {
+    let data: Awaited<ReturnType<typeof importBackup>>;
+    try {
+      data = await importBackup();
+    } catch (e) {
+      if (e instanceof ImportCanceledError) return;
+      Alert.alert('가져오기 실패', e instanceof Error ? e.message : undefined);
+      return;
+    }
+
+    Alert.alert(
+      '데이터 가져오기',
+      `${data.plants.length}개의 식물을 가져올까요? 현재 기기의 데이터를 덮어씁니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '가져오기',
+          style: 'destructive',
+          onPress: async () => {
+            let imported: Plant[] = data.plants.map((p) => ({ ...p, notificationId: undefined }));
+            if (notifEnabled) {
+              imported = await Promise.all(imported.map((p) => maybeSchedule(p)));
+            }
+            setPlants(imported);
+            await replaceSpeciesCache(data.speciesCache);
+            setSettingsOpen(false);
+          },
+        },
+      ],
+    );
+  };
+
   const outdoorPlants = (plants ?? []).filter((p) => p.isOutdoor);
   const unwateredOutdoorToday = outdoorPlants.filter((p) => p.lastWateredAt !== todayISO());
   const showRainSuggestion = weatherEnabled && !!weather?.isRaining && unwateredOutdoorToday.length > 0;
@@ -360,6 +407,9 @@ function PlantsApp() {
               <Text style={styles.ghostBtnText}>{selectionMode ? '선택 취소' : '✅ 여러 개 선택'}</Text>
             </Pressable>
           )}
+          <Pressable style={styles.ghostBtn} onPress={() => setSettingsOpen(true)}>
+            <Text style={styles.ghostBtnText}>⚙️ 설정</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -508,6 +558,31 @@ function PlantsApp() {
             </Pressable>
           </View>
           <LightMeter onClose={() => setLightMeterOpen(false)} />
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={settingsOpen} animationType="slide" onRequestClose={() => setSettingsOpen(false)}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>설정</Text>
+            <Pressable onPress={() => setSettingsOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          <View style={styles.settingsContent}>
+            <Text style={styles.settingsSectionTitle}>데이터 백업</Text>
+            <Text style={styles.settingsHint}>
+              모든 데이터는 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 내보내기해두세요.
+            </Text>
+            <Pressable style={styles.primaryBtn} onPress={handleExport} disabled={exportBusy}>
+              <Text style={styles.primaryBtnText}>
+                {exportBusy ? '내보내는 중…' : '📤 데이터 내보내기'}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.ghostBtn} onPress={handleImport}>
+              <Text style={styles.ghostBtnText}>📥 데이터 가져오기</Text>
+            </Pressable>
+          </View>
         </SafeAreaView>
       </Modal>
 
@@ -692,4 +767,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: colors.textHeading },
   modalClose: { fontSize: 18, color: colors.textDim, padding: spacing.xs },
+  settingsContent: { padding: spacing.lg, gap: spacing.sm },
+  settingsSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.textHeading },
+  settingsHint: { fontSize: 13, color: colors.textDim, marginBottom: spacing.xs },
 });
