@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Image,
   Modal,
@@ -14,7 +14,7 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { LightNeed, PlantDraft, SpeciesInfo } from '../types';
 import { parseDateOnly, todayISO, toISODate } from '../lib/date';
 import { pickAndSavePlantPhoto } from '../lib/image';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
 import SpeciesSearch from './SpeciesSearch';
 import LightMeter from './LightMeter';
 
@@ -32,6 +32,8 @@ interface Props {
 }
 
 export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [name, setName] = useState(initial?.name ?? '');
   const [species, setSpecies] = useState(initial?.species ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
@@ -358,7 +360,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { maxHeight: '100%' },
   content: { padding: spacing.lg, gap: spacing.md },
   field: { gap: spacing.xs },

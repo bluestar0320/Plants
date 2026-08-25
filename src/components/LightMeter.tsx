@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LightSensor } from 'expo-sensors';
 import type { LightNeed } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
 
 type LightBucket = 'dark' | 'low' | 'medium' | 'bright' | 'direct';
 
@@ -23,6 +23,8 @@ interface Props {
 }
 
 export default function LightMeter({ onApply, onClose }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [lux, setLux] = useState<number | null>(null);
   const [manualBucket, setManualBucket] = useState<LightBucket>('medium');
@@ -93,7 +95,7 @@ export default function LightMeter({ onApply, onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
   gauge: {
     alignSelf: 'center',

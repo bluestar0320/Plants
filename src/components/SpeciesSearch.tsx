@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { SpeciesInfo, SpeciesSearchResult } from '../types';
 import { getSpeciesCareInfo, searchSpecies } from '../lib/species';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
 
 interface Props {
   onApply: (info: SpeciesInfo) => void;
 }
 
 export default function SpeciesSearch({ onApply }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SpeciesSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,7 +103,7 @@ export default function SpeciesSearch({ onApply }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { gap: spacing.xs },
   label: { fontSize: 13, fontWeight: '600', color: colors.textDim },
   row: { flexDirection: 'row', gap: spacing.sm },

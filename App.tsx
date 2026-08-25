@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ import { fetchCurrentWeather, requestLocationPermission, type WeatherInfo } from
 import PlantCard from './src/components/PlantCard';
 import PlantForm from './src/components/PlantForm';
 import LightMeter from './src/components/LightMeter';
-import { colors, radius, spacing } from './src/theme';
+import { radius, spacing, useThemeColors, type ThemeColors } from './src/theme';
 
 const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
 const UNSPECIFIED_LOCATION = '위치 미지정';
@@ -73,6 +74,9 @@ export default function App() {
 }
 
 function PlantsApp() {
+  const scheme = useColorScheme();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [plants, setPlants] = useState<Plant[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
@@ -378,7 +382,7 @@ function PlantsApp() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <View style={styles.flexShrink}>
@@ -619,7 +623,7 @@ function PlantsApp() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   header: {

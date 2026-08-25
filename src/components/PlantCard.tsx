@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -18,7 +18,7 @@ import {
   monthsSince,
   waterStatus,
 } from '../lib/date';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
 
 const REPOT_REMINDER_MONTHS = 12;
 
@@ -29,12 +29,12 @@ const STATUS_LABEL: Record<string, string> = {
   ok: '건강해요',
 };
 
-const STATUS_COLOR: Record<string, { bg: string; fg: string; border: string }> = {
+const getStatusColor = (colors: ThemeColors): Record<string, { bg: string; fg: string; border: string }> => ({
   overdue: { bg: colors.dangerBg, fg: colors.danger, border: colors.danger },
   today: { bg: colors.amberBg, fg: colors.amber, border: colors.amber },
   soon: { bg: colors.greenBg, fg: colors.greenDark, border: colors.green },
   ok: { bg: colors.greenBg, fg: colors.greenDark, border: colors.border },
-};
+});
 
 interface Props {
   plant: Plant;
@@ -59,12 +59,15 @@ export default function PlantCard({
   selected,
   onToggleSelect,
 }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const statusColorMap = useMemo(() => getStatusColor(colors), [colors]);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays);
   const status = waterStatus(daysLeft);
-  const statusColor = STATUS_COLOR[status];
+  const statusColor = statusColorMap[status];
   const repotMonths = plant.lastRepottedAt ? monthsSince(plant.lastRepottedAt) : null;
   const repotDue = repotMonths !== null && repotMonths >= REPOT_REMINDER_MONTHS;
   const fertilizeTracked = !!plant.fertilizeIntervalDays;
@@ -241,7 +244,7 @@ export default function PlantCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
