@@ -5,6 +5,10 @@ import { nextWateringDate } from './date';
 
 const REMINDER_HOUR = 9;
 const ANDROID_CHANNEL_ID = 'watering-reminders';
+const WATER_CATEGORY_ID = 'watering-reminder-actions';
+
+/** actionIdentifier reported when the user taps the "물 줬어요" quick-action button on a reminder. */
+export const WATER_ACTION_IDENTIFIER = 'mark-watered';
 
 export const configureNotificationHandler = (): void => {
   Notifications.setNotificationHandler({
@@ -23,6 +27,17 @@ export const ensureAndroidChannel = async (): Promise<void> => {
     name: '물주기 알림',
     importance: Notifications.AndroidImportance.DEFAULT,
   });
+};
+
+/** Registers the "물 줬어요" quick-action button shown on watering reminder notifications. */
+export const ensureWateringActionCategory = async (): Promise<void> => {
+  try {
+    await Notifications.setNotificationCategoryAsync(WATER_CATEGORY_ID, [
+      { identifier: WATER_ACTION_IDENTIFIER, buttonTitle: '물 줬어요' },
+    ]);
+  } catch {
+    // Categories aren't supported on this platform (e.g. web) — the reminder still works, just without the button.
+  }
 };
 
 export const requestNotificationPermission = async (): Promise<boolean> => {
@@ -60,6 +75,7 @@ export const scheduleWateringReminder = async (
       title: `🌱 ${plant.name}`,
       body: '물 줄 시간이에요.',
       data: { plantId: plant.id },
+      categoryIdentifier: WATER_CATEGORY_ID,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -72,4 +88,22 @@ export const scheduleWateringReminder = async (
 export const cancelWateringReminder = async (notificationId?: string): Promise<void> => {
   if (!notificationId) return;
   await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => {});
+};
+
+/** Returns the plant id for a "물 줬어요" quick-action tap, or undefined for any other response. */
+export const getWaterActionPlantId = (response: Notifications.NotificationResponse): string | undefined => {
+  if (response.actionIdentifier !== WATER_ACTION_IDENTIFIER) return undefined;
+  const plantId = response.notification.request.content.data?.plantId;
+  return typeof plantId === 'string' ? plantId : undefined;
+};
+
+/**
+ * The most recent notification response (tap or quick-action), including one that launched the
+ * app from a killed state. Web has no native notifications module to back this, so it's skipped
+ * there — Platform.OS is fixed for the app's lifetime, so this conditional hook call is stable.
+ */
+export const useWateringActionResponse = (): Notifications.NotificationResponse | null => {
+  if (Platform.OS === 'web') return null;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return Notifications.useLastNotificationResponse() ?? null;
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -36,8 +36,11 @@ import {
   cancelWateringReminder,
   configureNotificationHandler,
   ensureAndroidChannel,
+  ensureWateringActionCategory,
+  getWaterActionPlantId,
   requestNotificationPermission,
   scheduleWateringReminder,
+  useWateringActionResponse,
 } from './src/lib/notifications';
 import { deletePlantPhoto } from './src/lib/image';
 import { fetchCurrentWeather, requestLocationPermission, type WeatherInfo } from './src/lib/weather';
@@ -94,7 +97,7 @@ function PlantsApp() {
 
   useEffect(() => {
     (async () => {
-      await ensureAndroidChannel();
+      await Promise.all([ensureAndroidChannel(), ensureWateringActionCategory()]);
       const [stored, seeded, notifOn, weatherOn, cachedWeather] = await Promise.all([
         loadPlants(),
         hasSeeded(),
@@ -212,6 +215,18 @@ function PlantsApp() {
     const updated = await maybeSchedule(waterPlant(target, todayISO()));
     setPlants((prev) => (prev ?? []).map((p) => (p.id === id ? updated : p)));
   };
+
+  const handleWaterRef = useRef(handleWater);
+  handleWaterRef.current = handleWater;
+
+  // Handles a "물 줬어요" quick-action tap on a reminder notification, including one that
+  // launched the app from a killed state (useLastNotificationResponse covers cold starts).
+  const wateringActionResponse = useWateringActionResponse();
+  useEffect(() => {
+    if (!wateringActionResponse) return;
+    const plantId = getWaterActionPlantId(wateringActionResponse);
+    if (plantId) handleWaterRef.current(plantId);
+  }, [wateringActionResponse]);
 
   const handleRepot = (id: string) => {
     setPlants((prev) =>
