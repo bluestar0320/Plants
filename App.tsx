@@ -44,6 +44,7 @@ import {
 } from './src/lib/notifications';
 import { deletePlantPhoto } from './src/lib/image';
 import { fetchCurrentWeather, requestLocationPermission, type WeatherInfo } from './src/lib/weather';
+import { writeStatsSnapshot } from 'stats-export';
 import PlantCard from './src/components/PlantCard';
 import PlantForm from './src/components/PlantForm';
 import LightMeter from './src/components/LightMeter';
@@ -179,6 +180,11 @@ function PlantsApp() {
     }
     return { total: list.length, overdue, dueToday };
   }, [plants]);
+
+  useEffect(() => {
+    if (plants === null) return;
+    writeStatsSnapshot(stats.total, stats.overdue, stats.dueToday);
+  }, [stats, plants]);
 
   const maybeSchedule = async (plant: Plant): Promise<Plant> => {
     if (!notifEnabled) return plant;

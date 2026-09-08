@@ -1,0 +1,13 @@
+{
+  "name": "stats-export",
+  "version": "1.0.0",
+  "description": "Local Expo module: exposes read-only plant-care summary counts to other apps on the device via an Android ContentProvider.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "keywords": ["expo"],
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "expo": "*",
+    "react-native": "*"
+  }
+}
