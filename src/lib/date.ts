@@ -93,6 +93,23 @@ export const getSeason = (date: Date = new Date()): Season => {
   return 'fall';
 };
 
+/** Repotting is suggested once this many months have passed since the last one. */
+export const REPOT_REMINDER_MONTHS = 12;
+/** Pot rotation (for even light exposure) is suggested once this many days have passed. */
+export const ROTATE_REMINDER_DAYS = 14;
+
+export const addMonthsToISO = (iso: string, months: number): string => {
+  const d = parseDateOnly(iso);
+  d.setMonth(d.getMonth() + months);
+  return toISODate(d);
+};
+
+export const addDaysToISO = (iso: string, days: number): string => {
+  const d = parseDateOnly(iso);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+};
+
 export const formatDate = (iso: string): string => {
   const d = parseDateOnly(iso);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(

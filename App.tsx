@@ -60,6 +60,7 @@ import PlantForm from './src/components/PlantForm';
 import LightMeter from './src/components/LightMeter';
 import CareStats from './src/components/CareStats';
 import PestGuide from './src/components/PestGuide';
+import CalendarView from './src/components/CalendarView';
 import { radius, spacing, useThemeColors, type ThemeColors } from './src/theme';
 
 const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
@@ -133,6 +134,7 @@ function PlantsApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [pestGuideOpen, setPestGuideOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [seasonalTipDismissed, setSeasonalTipDismissed] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [csvExportBusy, setCsvExportBusy] = useState(false);
@@ -591,6 +593,9 @@ function PlantsApp() {
           <Pressable style={styles.ghostBtn} onPress={() => setPestGuideOpen(true)}>
             <Text style={styles.ghostBtnText}>🩺 병충해 가이드</Text>
           </Pressable>
+          <Pressable style={styles.ghostBtn} onPress={() => setCalendarOpen(true)}>
+            <Text style={styles.ghostBtnText}>📅 캘린더</Text>
+          </Pressable>
           <Pressable style={styles.ghostBtn} onPress={() => setSettingsOpen(true)}>
             <Text style={styles.ghostBtnText}>⚙️ 설정</Text>
           </Pressable>
@@ -851,6 +856,18 @@ function PlantsApp() {
             </Pressable>
           </View>
           <PestGuide />
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={calendarOpen} animationType="slide" onRequestClose={() => setCalendarOpen(false)}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>캘린더</Text>
+            <Pressable onPress={() => setCalendarOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          <CalendarView plants={plants} />
         </SafeAreaView>
       </Modal>
 

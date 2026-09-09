@@ -18,13 +18,12 @@ import {
   formatDate,
   formatDaysLeft,
   monthsSince,
+  REPOT_REMINDER_MONTHS,
+  ROTATE_REMINDER_DAYS,
   todayISO,
   waterStatus,
 } from '../lib/date';
 import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
-
-const REPOT_REMINDER_MONTHS = 12;
-const ROTATE_REMINDER_DAYS = 14;
 
 const STATUS_LABEL: Record<string, string> = {
   overdue: '물 주세요!',
