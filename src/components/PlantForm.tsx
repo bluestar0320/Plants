@@ -50,6 +50,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
     initial?.fertilizeIntervalDays ? String(initial.fertilizeIntervalDays) : '',
   );
   const [lastFertilizedAt, setLastFertilizedAt] = useState(initial?.lastFertilizedAt);
+  const [fertilizerType, setFertilizerType] = useState(initial?.fertilizerType ?? '');
   const [careLevel, setCareLevel] = useState(initial?.careLevel);
   const [speciesId, setSpeciesId] = useState(initial?.speciesId);
   const [error, setError] = useState('');
@@ -121,6 +122,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       lastRepottedAt,
       fertilizeIntervalDays: fertilizeInterval.trim() ? Math.round(Number(fertilizeInterval)) : undefined,
       lastFertilizedAt: fertilizeInterval.trim() ? lastFertilizedAt : undefined,
+      fertilizerType: fertilizeInterval.trim() ? fertilizerType.trim() || undefined : undefined,
     });
   };
 
@@ -292,6 +294,19 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
           </View>
         )}
       </View>
+
+      {!!fertilizeInterval.trim() && (
+        <View style={styles.field}>
+          <Text style={styles.label}>비료 종류 (선택)</Text>
+          <TextInput
+            style={styles.input}
+            value={fertilizerType}
+            onChangeText={setFertilizerType}
+            placeholder="예: 액체 비료, 하이포넥스"
+            placeholderTextColor={colors.textDim}
+          />
+        </View>
+      )}
 
       <View style={styles.field}>
         <View style={styles.labelRow}>

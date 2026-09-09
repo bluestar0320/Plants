@@ -26,11 +26,25 @@ export const nextWateringDate = (lastWateredAt: string, intervalDays: number): D
   return due;
 };
 
+export const daysSince = (iso: string): number => {
+  const then = parseDateOnly(iso);
+  const today = parseDateOnly(todayISO());
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return Math.round((today.getTime() - then.getTime()) / msPerDay);
+};
+
+export const daysAgoISO = (n: number): string => {
+  const d = parseDateOnly(todayISO());
+  d.setDate(d.getDate() - n);
+  return toISODate(d);
+};
+
 export const daysUntilNextWatering = (
   lastWateredAt: string,
   intervalDays: number,
+  snoozedUntil?: string,
 ): number => {
-  const due = nextWateringDate(lastWateredAt, intervalDays);
+  const due = snoozedUntil ? parseDateOnly(snoozedUntil) : nextWateringDate(lastWateredAt, intervalDays);
   const today = parseDateOnly(todayISO());
   const msPerDay = 1000 * 60 * 60 * 24;
   return Math.round((due.getTime() - today.getTime()) / msPerDay);
@@ -61,6 +75,12 @@ export const monthsSince = (iso: string): number => {
     (now.getMonth() - then.getMonth()) -
     (now.getDate() < then.getDate() ? 1 : 0)
   );
+};
+
+export const formatHour12 = (hour: number): string => {
+  const period = hour < 12 ? '오전' : '오후';
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${period} ${h12}시`;
 };
 
 export const formatDate = (iso: string): string => {

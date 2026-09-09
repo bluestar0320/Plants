@@ -5,6 +5,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -31,7 +32,7 @@ import {
 } from './src/lib/storage';
 import { exportBackup, importBackup, ImportCanceledError } from './src/lib/backup';
 import { seedPlants } from './src/lib/seed';
-import { daysUntilNextWatering, todayISO } from './src/lib/date';
+import { daysUntilNextWatering, nextWateringDate, toISODate, todayISO } from './src/lib/date';
 import {
   cancelWateringReminder,
   configureNotificationHandler,
@@ -54,18 +55,33 @@ const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
 const UNSPECIFIED_LOCATION = '위치 미지정';
 const WATERING_HISTORY_MAX = 60;
 
+type SortMode = 'urgency' | 'name' | 'location' | 'recent';
+const SORT_LABELS: Record<SortMode, string> = {
+  urgency: '급한순',
+  name: '이름순',
+  location: '위치순',
+  recent: '최근 추가순',
+};
+
 const waterPlant = (plant: Plant, dateISO: string): Plant => {
   const history = plant.wateringHistory ?? [];
   const alreadyLoggedToday = history[0] === dateISO;
   return {
     ...plant,
     lastWateredAt: dateISO,
+    snoozedUntil: undefined,
     waterCount: plant.waterCount + 1,
     wateringHistory: alreadyLoggedToday
       ? history
       : [dateISO, ...history].slice(0, WATERING_HISTORY_MAX),
   };
 };
+
+/** Postpones the due date by one full interval from today, without counting it as an actual watering. */
+const skipWatering = (plant: Plant): Plant => ({
+  ...plant,
+  snoozedUntil: toISODate(nextWateringDate(todayISO(), plant.wateringIntervalDays)),
+});
 
 configureNotificationHandler();
 
@@ -83,9 +99,11 @@ function PlantsApp() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [plants, setPlants] = useState<Plant[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [duplicateDraft, setDuplicateDraft] = useState<PlantDraft | null>(null);
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'location'>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('urgency');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -95,6 +113,10 @@ function PlantsApp() {
   const [lightMeterOpen, setLightMeterOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(
+    null,
+  );
+  const pendingDeleteRef = useRef<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -141,12 +163,22 @@ function PlantsApp() {
 
   const sortedPlants = useMemo(() => {
     if (!plants) return [];
-    return [...plants].sort((a, b) => {
-      const da = daysUntilNextWatering(a.lastWateredAt, a.wateringIntervalDays);
-      const db = daysUntilNextWatering(b.lastWateredAt, b.wateringIntervalDays);
-      return da - db;
-    });
-  }, [plants]);
+    const list = [...plants];
+    switch (sortMode) {
+      case 'name':
+        return list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      case 'location':
+        return list.sort((a, b) => (a.location ?? '').localeCompare(b.location ?? '', 'ko'));
+      case 'recent':
+        return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      default:
+        return list.sort((a, b) => {
+          const da = daysUntilNextWatering(a.lastWateredAt, a.wateringIntervalDays, a.snoozedUntil);
+          const db = daysUntilNextWatering(b.lastWateredAt, b.wateringIntervalDays, b.snoozedUntil);
+          return da - db;
+        });
+    }
+  }, [plants, sortMode]);
 
   const filteredPlants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -174,7 +206,7 @@ function PlantsApp() {
     let overdue = 0;
     let dueToday = 0;
     for (const p of list) {
-      const d = daysUntilNextWatering(p.lastWateredAt, p.wateringIntervalDays);
+      const d = daysUntilNextWatering(p.lastWateredAt, p.wateringIntervalDays, p.snoozedUntil);
       if (d < 0) overdue += 1;
       else if (d === 0) dueToday += 1;
     }
@@ -203,6 +235,7 @@ function PlantsApp() {
     plant = await maybeSchedule(plant);
     setPlants((prev) => [...(prev ?? []), plant]);
     setIsAdding(false);
+    setDuplicateDraft(null);
   };
 
   const handleEditSubmit = async (draft: PlantDraft) => {
@@ -219,6 +252,40 @@ function PlantsApp() {
     const target = (plants ?? []).find((p) => p.id === id);
     if (!target) return;
     const updated = await maybeSchedule(waterPlant(target, todayISO()));
+    setPlants((prev) => (prev ?? []).map((p) => (p.id === id ? updated : p)));
+  };
+
+  const openAddForm = () => {
+    setDuplicateDraft(null);
+    setIsAdding(true);
+  };
+
+  const handleDuplicate = (plant: Plant) => {
+    setDuplicateDraft({
+      name: `${plant.name} 사본`,
+      species: plant.species,
+      location: plant.location,
+      isOutdoor: plant.isOutdoor,
+      lastRepottedAt: undefined,
+      fertilizeIntervalDays: plant.fertilizeIntervalDays,
+      fertilizerType: plant.fertilizerType,
+      lastFertilizedAt: undefined,
+      photos: undefined,
+      wateringIntervalDays: plant.wateringIntervalDays,
+      lastWateredAt: todayISO(),
+      light: plant.light,
+      notes: plant.notes,
+      careLevel: plant.careLevel,
+      speciesId: plant.speciesId,
+      wateringHistory: undefined,
+    });
+    setIsAdding(true);
+  };
+
+  const handleSkip = async (id: string) => {
+    const target = (plants ?? []).find((p) => p.id === id);
+    if (!target) return;
+    const updated = await maybeSchedule(skipWatering(target));
     setPlants((prev) => (prev ?? []).map((p) => (p.id === id ? updated : p)));
   };
 
@@ -246,22 +313,34 @@ function PlantsApp() {
     );
   };
 
+  const finalizeDelete = async (target: Plant) => {
+    await cancelWateringReminder(target.notificationId);
+    (target.photos ?? []).forEach(deletePlantPhoto);
+  };
+
   const handleDelete = (id: string) => {
-    Alert.alert('식물 삭제', '이 식물을 목록에서 삭제할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          const target = (plants ?? []).find((p) => p.id === id);
-          if (target) {
-            await cancelWateringReminder(target.notificationId);
-            (target.photos ?? []).forEach(deletePlantPhoto);
-          }
-          setPlants((prev) => (prev ?? []).filter((p) => p.id !== id));
-        },
-      },
-    ]);
+    const target = (plants ?? []).find((p) => p.id === id);
+    if (!target) return;
+    setPlants((prev) => (prev ?? []).filter((p) => p.id !== id));
+    if (pendingDeleteRef.current) {
+      clearTimeout(pendingDeleteRef.current.timeoutId);
+      finalizeDelete(pendingDeleteRef.current.plant);
+    }
+    const timeoutId = setTimeout(() => {
+      finalizeDelete(target);
+      setPendingDelete(null);
+    }, 5000);
+    const next = { plant: target, timeoutId };
+    pendingDeleteRef.current = next;
+    setPendingDelete(next);
+  };
+
+  const handleUndoDelete = () => {
+    if (!pendingDelete) return;
+    clearTimeout(pendingDelete.timeoutId);
+    pendingDeleteRef.current = null;
+    setPlants((prev) => [...(prev ?? []), pendingDelete.plant]);
+    setPendingDelete(null);
   };
 
   const handleToggleNotifications = async () => {
@@ -410,7 +489,7 @@ function PlantsApp() {
             <Text style={styles.title}>내 식물 관리</Text>
             <Text style={styles.tagline}>물 줄 때를 놓치지 않도록 도와드릴게요</Text>
           </View>
-          <Pressable style={styles.primaryBtn} onPress={() => setIsAdding(true)}>
+          <Pressable style={styles.primaryBtn} onPress={openAddForm}>
             <Text style={styles.primaryBtnText}>+ 추가</Text>
           </Pressable>
         </View>
@@ -478,7 +557,7 @@ function PlantsApp() {
           <Text style={{ fontSize: 40 }}>🪴</Text>
           <Text style={styles.emptyTitle}>아직 등록된 식물이 없어요</Text>
           <Text style={styles.tagline}>식물을 추가하고 물주기 주기를 관리해보세요.</Text>
-          <Pressable style={[styles.primaryBtn, { marginTop: spacing.md }]} onPress={() => setIsAdding(true)}>
+          <Pressable style={[styles.primaryBtn, { marginTop: spacing.md }]} onPress={openAddForm}>
             <Text style={styles.primaryBtnText}>첫 식물 추가하기</Text>
           </Pressable>
         </View>
@@ -513,6 +592,22 @@ function PlantsApp() {
             </Pressable>
           </View>
 
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll}>
+            <View style={styles.sortRow}>
+              {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
+                <Pressable
+                  key={mode}
+                  style={[styles.sortChip, sortMode === mode && styles.sortChipActive]}
+                  onPress={() => setSortMode(mode)}
+                >
+                  <Text style={[styles.sortChipText, sortMode === mode && styles.sortChipTextActive]}>
+                    {SORT_LABELS[mode]}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
           {selectionMode && (
             <View style={styles.bulkBar}>
               <Text style={styles.bulkBarText}>{selectedIds.size}개 선택됨</Text>
@@ -541,6 +636,8 @@ function PlantsApp() {
                   onDelete={handleDelete}
                   onRepot={handleRepot}
                   onFertilize={handleFertilize}
+                  onSkip={handleSkip}
+                  onDuplicate={handleDuplicate}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleToggleSelect}
@@ -563,6 +660,8 @@ function PlantsApp() {
                   onDelete={handleDelete}
                   onRepot={handleRepot}
                   onFertilize={handleFertilize}
+                  onSkip={handleSkip}
+                  onDuplicate={handleDuplicate}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleToggleSelect}
@@ -613,12 +712,18 @@ function PlantsApp() {
       <Modal visible={isAdding} animationType="slide" onRequestClose={() => setIsAdding(false)}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>식물 추가</Text>
-            <Pressable onPress={() => setIsAdding(false)}>
+            <Text style={styles.modalTitle}>{duplicateDraft ? '식물 복제' : '식물 추가'}</Text>
+            <Pressable onPress={() => { setIsAdding(false); setDuplicateDraft(null); }}>
               <Text style={styles.modalClose}>✕</Text>
             </Pressable>
           </View>
-          <PlantForm submitLabel="추가하기" onCancel={() => setIsAdding(false)} onSubmit={handleAdd} />
+          <PlantForm
+            key={duplicateDraft ? 'duplicate' : 'new'}
+            initial={duplicateDraft ?? undefined}
+            submitLabel="추가하기"
+            onCancel={() => { setIsAdding(false); setDuplicateDraft(null); }}
+            onSubmit={handleAdd}
+          />
         </SafeAreaView>
       </Modal>
 
@@ -640,6 +745,17 @@ function PlantsApp() {
           )}
         </SafeAreaView>
       </Modal>
+
+      {pendingDelete && (
+        <View style={styles.snackbar}>
+          <Text style={styles.snackbarText} numberOfLines={1}>
+            {pendingDelete.plant.name} 삭제됨
+          </Text>
+          <Pressable onPress={handleUndoDelete}>
+            <Text style={styles.snackbarAction}>실행취소</Text>
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -727,6 +843,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   viewToggleChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
   viewToggleText: { fontSize: 13, color: colors.text },
   viewToggleTextActive: { color: colors.greenDark, fontWeight: '700' },
+  sortScroll: { marginBottom: spacing.sm },
+  sortRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  sortChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+  },
+  sortChipActive: { borderColor: colors.green, backgroundColor: colors.greenBg },
+  sortChipText: { fontSize: 12.5, color: colors.textDim },
+  sortChipTextActive: { color: colors.greenDark, fontWeight: '700' },
   sectionHeader: {
     fontSize: 14,
     fontWeight: '700',
@@ -794,4 +923,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   settingsContent: { padding: spacing.lg, gap: spacing.sm },
   settingsSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.textHeading },
   settingsHint: { fontSize: 13, color: colors.textDim, marginBottom: spacing.xs },
+  snackbar: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+    backgroundColor: 'rgba(30,32,26,0.95)',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  snackbarText: { color: '#fff', fontSize: 13, flexShrink: 1 },
+  snackbarAction: { color: colors.green, fontSize: 13, fontWeight: '700' },
 });

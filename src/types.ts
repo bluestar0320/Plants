@@ -9,10 +9,13 @@ export interface Plant {
   lastRepottedAt?: string; // ISO date
   fertilizeIntervalDays?: number;
   lastFertilizedAt?: string; // ISO date
+  fertilizerType?: string;
   /** Local photo URIs; the first is the cover photo shown on the card. */
   photos?: string[];
   wateringIntervalDays: number;
   lastWateredAt: string; // ISO date (yyyy-mm-dd)
+  /** When set to a future date, watering is postponed until then without counting as an actual watering. */
+  snoozedUntil?: string;
   light: LightNeed;
   notes?: string;
   careLevel?: string;

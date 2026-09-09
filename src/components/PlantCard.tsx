@@ -16,6 +16,7 @@ import {
   formatDate,
   formatDaysLeft,
   monthsSince,
+  todayISO,
   waterStatus,
 } from '../lib/date';
 import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
@@ -43,6 +44,8 @@ interface Props {
   onDelete: (id: string) => void;
   onRepot: (id: string) => void;
   onFertilize: (id: string) => void;
+  onSkip: (id: string) => void;
+  onDuplicate: (plant: Plant) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -55,6 +58,8 @@ export default function PlantCard({
   onDelete,
   onRepot,
   onFertilize,
+  onSkip,
+  onDuplicate,
   selectionMode,
   selected,
   onToggleSelect,
@@ -65,7 +70,8 @@ export default function PlantCard({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays);
+  const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays, plant.snoozedUntil);
+  const isSnoozed = !!plant.snoozedUntil && plant.snoozedUntil >= todayISO();
   const status = waterStatus(daysLeft);
   const statusColor = statusColorMap[status];
   const repotMonths = plant.lastRepottedAt ? monthsSince(plant.lastRepottedAt) : null;
@@ -121,16 +127,30 @@ export default function PlantCard({
         </View>
       </View>
 
-      <Text style={styles.dueLine}>
-        <Text style={styles.dueLineStrong}>{formatDaysLeft(daysLeft)}</Text>
-        <Text style={styles.dim}> · {plant.wateringIntervalDays}일마다</Text>
-      </Text>
-      <Pressable disabled={selectionMode} onPress={() => setHistoryOpen(true)}>
-        <Text style={styles.small}>
-          마지막 급수: {formatDate(plant.lastWateredAt)}
-          {!selectionMode && '  ·  기록 보기'}
+      <View style={styles.dueLineRow}>
+        <Text style={styles.dueLine}>
+          <Text style={styles.dueLineStrong}>{formatDaysLeft(daysLeft)}</Text>
+          <Text style={styles.dim}> · {plant.wateringIntervalDays}일마다{isSnoozed ? ' · 건너뜀' : ''}</Text>
         </Text>
-      </Pressable>
+        {!selectionMode && (
+          <Pressable onPress={() => onSkip(plant.id)}>
+            <Text style={styles.skipLink}>건너뛰기</Text>
+          </Pressable>
+        )}
+      </View>
+      <View style={styles.metaRow}>
+        <Pressable disabled={selectionMode} onPress={() => setHistoryOpen(true)}>
+          <Text style={styles.small}>
+            마지막 급수: {formatDate(plant.lastWateredAt)}
+            {!selectionMode && '  ·  기록 보기'}
+          </Text>
+        </Pressable>
+        {!selectionMode && (
+          <Pressable onPress={() => onDuplicate(plant)}>
+            <Text style={styles.repotLink}>복제</Text>
+          </Pressable>
+        )}
+      </View>
       {!selectionMode && (
         <View style={styles.repotRow}>
           <Text style={[styles.small, repotDue && styles.repotDueText]}>
@@ -147,7 +167,7 @@ export default function PlantCard({
       {!selectionMode && fertilizeTracked && (
         <View style={styles.repotRow}>
           <Text style={[styles.small, fertilizeDue && styles.repotDueText]}>
-            🌿 비료:{' '}
+            🌿 비료{plant.fertilizerType ? ` · ${plant.fertilizerType}` : ''}:{' '}
             {plant.lastFertilizedAt
               ? `${fertilizeDaysLeft! < 0 ? `${Math.abs(fertilizeDaysLeft!)}일 지남` : fertilizeDaysLeft === 0 ? '오늘' : `${fertilizeDaysLeft}일 후`}`
               : '기록 없음'}
@@ -298,10 +318,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 4,
   },
   badgeText: { fontSize: 12, fontWeight: '600' },
+  dueLineRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dueLine: { fontSize: 15 },
   dueLineStrong: { fontWeight: '700', color: colors.textHeading },
+  skipLink: { fontSize: 12.5, color: colors.textDim, fontWeight: '600' },
   dim: { color: colors.textDim },
   small: { fontSize: 12.5, color: colors.textDim },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   repotRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

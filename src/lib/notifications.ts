@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { Plant } from '../types';
-import { nextWateringDate } from './date';
+import { nextWateringDate, parseDateOnly } from './date';
 
 const REMINDER_HOUR = 9;
 const ANDROID_CHANNEL_ID = 'watering-reminders';
@@ -52,8 +52,12 @@ export const getNotificationPermissionGranted = async (): Promise<boolean> => {
   return current.granted;
 };
 
-const reminderDateFor = (plant: Pick<Plant, 'lastWateredAt' | 'wateringIntervalDays'>): Date => {
-  const due = nextWateringDate(plant.lastWateredAt, plant.wateringIntervalDays);
+const reminderDateFor = (
+  plant: Pick<Plant, 'lastWateredAt' | 'wateringIntervalDays' | 'snoozedUntil'>,
+): Date => {
+  const due = plant.snoozedUntil
+    ? parseDateOnly(plant.snoozedUntil)
+    : nextWateringDate(plant.lastWateredAt, plant.wateringIntervalDays);
   due.setHours(REMINDER_HOUR, 0, 0, 0);
   const now = new Date();
   if (due.getTime() <= now.getTime()) {
@@ -64,7 +68,10 @@ const reminderDateFor = (plant: Pick<Plant, 'lastWateredAt' | 'wateringIntervalD
 
 /** Cancels any existing reminder for this plant and schedules the next one. Returns the new notification id. */
 export const scheduleWateringReminder = async (
-  plant: Pick<Plant, 'id' | 'name' | 'lastWateredAt' | 'wateringIntervalDays' | 'notificationId'>,
+  plant: Pick<
+    Plant,
+    'id' | 'name' | 'lastWateredAt' | 'wateringIntervalDays' | 'notificationId' | 'snoozedUntil'
+  >,
 ): Promise<string> => {
   if (plant.notificationId) {
     await Notifications.cancelScheduledNotificationAsync(plant.notificationId).catch(() => {});
