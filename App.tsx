@@ -52,6 +52,7 @@ import PlantCard from './src/components/PlantCard';
 import PlantForm from './src/components/PlantForm';
 import LightMeter from './src/components/LightMeter';
 import CareStats from './src/components/CareStats';
+import PestGuide from './src/components/PestGuide';
 import { radius, spacing, useThemeColors, type ThemeColors } from './src/theme';
 
 const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
@@ -117,6 +118,7 @@ function PlantsApp() {
   const [lightMeterOpen, setLightMeterOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [pestGuideOpen, setPestGuideOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [csvExportBusy, setCsvExportBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(
@@ -556,6 +558,9 @@ function PlantsApp() {
               <Text style={styles.ghostBtnText}>📊 통계</Text>
             </Pressable>
           )}
+          <Pressable style={styles.ghostBtn} onPress={() => setPestGuideOpen(true)}>
+            <Text style={styles.ghostBtnText}>🩺 병충해 가이드</Text>
+          </Pressable>
           <Pressable style={styles.ghostBtn} onPress={() => setSettingsOpen(true)}>
             <Text style={styles.ghostBtnText}>⚙️ 설정</Text>
           </Pressable>
@@ -791,6 +796,18 @@ function PlantsApp() {
           <ScrollView>
             <CareStats plants={plants} />
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={pestGuideOpen} animationType="slide" onRequestClose={() => setPestGuideOpen(false)}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>병충해 가이드</Text>
+            <Pressable onPress={() => setPestGuideOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          <PestGuide />
         </SafeAreaView>
       </Modal>
 
