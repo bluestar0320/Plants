@@ -51,6 +51,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   );
   const [lastFertilizedAt, setLastFertilizedAt] = useState(initial?.lastFertilizedAt);
   const [fertilizerType, setFertilizerType] = useState(initial?.fertilizerType ?? '');
+  const [humidityNote, setHumidityNote] = useState(initial?.humidityNote ?? '');
   const [careLevel, setCareLevel] = useState(initial?.careLevel);
   const [speciesId, setSpeciesId] = useState(initial?.speciesId);
   const [error, setError] = useState('');
@@ -123,6 +124,7 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       fertilizeIntervalDays: fertilizeInterval.trim() ? Math.round(Number(fertilizeInterval)) : undefined,
       lastFertilizedAt: fertilizeInterval.trim() ? lastFertilizedAt : undefined,
       fertilizerType: fertilizeInterval.trim() ? fertilizerType.trim() || undefined : undefined,
+      humidityNote: humidityNote.trim() || undefined,
     });
   };
 
@@ -330,6 +332,17 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
             </Pressable>
           ))}
         </View>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>습도 메모 (선택)</Text>
+        <TextInput
+          style={styles.input}
+          value={humidityNote}
+          onChangeText={setHumidityNote}
+          placeholder="예: 분무 자주 필요, 가습기 근처에 두기"
+          placeholderTextColor={colors.textDim}
+        />
       </View>
 
       <Modal visible={lightMeterOpen} animationType="slide" onRequestClose={() => setLightMeterOpen(false)}>

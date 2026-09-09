@@ -46,6 +46,7 @@ interface Props {
   onFertilize: (id: string) => void;
   onSkip: (id: string) => void;
   onDuplicate: (plant: Plant) => void;
+  onToggleFavorite: (id: string) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -60,6 +61,7 @@ export default function PlantCard({
   onFertilize,
   onSkip,
   onDuplicate,
+  onToggleFavorite,
   selectionMode,
   selected,
   onToggleSelect,
@@ -120,6 +122,13 @@ export default function PlantCard({
             </Text>
           )}
         </View>
+        {!selectionMode && (
+          <Pressable onPress={() => onToggleFavorite(plant.id)} hitSlop={8}>
+            <Text style={[styles.favoriteIcon, !plant.isFavorite && { color: colors.textDim }]}>
+              {plant.isFavorite ? '⭐' : '☆'}
+            </Text>
+          </Pressable>
+        )}
         <View style={[styles.badge, { backgroundColor: statusColor.bg }]}>
           <Text style={[styles.badgeText, { color: statusColor.fg }]}>
             {STATUS_LABEL[status]}
@@ -176,6 +185,9 @@ export default function PlantCard({
             <Text style={styles.repotLink}>비료 줬어요</Text>
           </Pressable>
         </View>
+      )}
+      {!!plant.humidityNote && !selectionMode && (
+        <Text style={styles.small}>💧 습도: {plant.humidityNote}</Text>
       )}
       {!!plant.notes && <Text style={styles.notes}>{plant.notes}</Text>}
 
@@ -312,6 +324,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   name: { fontSize: 17, fontWeight: '600', color: colors.textHeading },
   envIcon: { fontSize: 13 },
   meta: { fontSize: 13, color: colors.textDim, marginTop: 2 },
+  favoriteIcon: { fontSize: 20 },
   badge: {
     borderRadius: radius.pill,
     paddingHorizontal: 10,

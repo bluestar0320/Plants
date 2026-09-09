@@ -172,20 +172,23 @@ function PlantsApp() {
   const sortedPlants = useMemo(() => {
     if (!plants) return [];
     const list = [...plants];
-    switch (sortMode) {
-      case 'name':
-        return list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-      case 'location':
-        return list.sort((a, b) => (a.location ?? '').localeCompare(b.location ?? '', 'ko'));
-      case 'recent':
-        return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      default:
-        return list.sort((a, b) => {
+    const favoriteFirst = (a: Plant, b: Plant) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
+    const baseCompare = (a: Plant, b: Plant): number => {
+      switch (sortMode) {
+        case 'name':
+          return a.name.localeCompare(b.name, 'ko');
+        case 'location':
+          return (a.location ?? '').localeCompare(b.location ?? '', 'ko');
+        case 'recent':
+          return b.createdAt.localeCompare(a.createdAt);
+        default: {
           const da = daysUntilNextWatering(a.lastWateredAt, a.wateringIntervalDays, a.snoozedUntil);
           const db = daysUntilNextWatering(b.lastWateredAt, b.wateringIntervalDays, b.snoozedUntil);
           return da - db;
-        });
-    }
+        }
+      }
+    };
+    return list.sort((a, b) => favoriteFirst(a, b) || baseCompare(a, b));
   }, [plants, sortMode]);
 
   const filteredPlants = useMemo(() => {
@@ -286,6 +289,7 @@ function PlantsApp() {
       careLevel: plant.careLevel,
       speciesId: plant.speciesId,
       wateringHistory: undefined,
+      humidityNote: plant.humidityNote,
     });
     setIsAdding(true);
   };
@@ -318,6 +322,12 @@ function PlantsApp() {
   const handleFertilize = (id: string) => {
     setPlants((prev) =>
       (prev ?? []).map((p) => (p.id === id ? { ...p, lastFertilizedAt: todayISO() } : p)),
+    );
+  };
+
+  const handleToggleFavorite = (id: string) => {
+    setPlants((prev) =>
+      (prev ?? []).map((p) => (p.id === id ? { ...p, isFavorite: !p.isFavorite } : p)),
     );
   };
 
@@ -674,6 +684,7 @@ function PlantsApp() {
                   onFertilize={handleFertilize}
                   onSkip={handleSkip}
                   onDuplicate={handleDuplicate}
+                  onToggleFavorite={handleToggleFavorite}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleToggleSelect}
@@ -698,6 +709,7 @@ function PlantsApp() {
                   onFertilize={handleFertilize}
                   onSkip={handleSkip}
                   onDuplicate={handleDuplicate}
+                  onToggleFavorite={handleToggleFavorite}
                   selectionMode={selectionMode}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleToggleSelect}
