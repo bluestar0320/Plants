@@ -96,9 +96,9 @@ const waterPlant = (plant: Plant, dateISO: string): Plant => {
 };
 
 /** Postpones the due date by one full interval from today, without counting it as an actual watering. */
-const skipWatering = (plant: Plant): Plant => ({
+const skipWatering = (plant: Plant, days: number): Plant => ({
   ...plant,
-  snoozedUntil: toISODate(nextWateringDate(todayISO(), plant.wateringIntervalDays)),
+  snoozedUntil: toISODate(nextWateringDate(todayISO(), days)),
 });
 
 configureNotificationHandler();
@@ -314,10 +314,10 @@ function PlantsApp() {
     setIsAdding(true);
   };
 
-  const handleSkip = async (id: string) => {
+  const handleSkip = async (id: string, days: number) => {
     const target = (plants ?? []).find((p) => p.id === id);
     if (!target) return;
-    const updated = await maybeSchedule(skipWatering(target));
+    const updated = await maybeSchedule(skipWatering(target, days));
     setPlants((prev) => (prev ?? []).map((p) => (p.id === id ? updated : p)));
   };
 

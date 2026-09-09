@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -48,7 +49,7 @@ interface Props {
   onFertilize: (id: string) => void;
   onMist: (id: string) => void;
   onRotate: (id: string) => void;
-  onSkip: (id: string) => void;
+  onSkip: (id: string, days: number) => void;
   onDuplicate: (plant: Plant) => void;
   onToggleFavorite: (id: string) => void;
   selectionMode?: boolean;
@@ -78,6 +79,8 @@ export default function PlantCard({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [customSnoozeDays, setCustomSnoozeDays] = useState('');
   const daysLeft = daysUntilNextWatering(plant.lastWateredAt, plant.wateringIntervalDays, plant.snoozedUntil);
   const isSnoozed = !!plant.snoozedUntil && plant.snoozedUntil >= todayISO();
   const status = waterStatus(daysLeft);
@@ -154,7 +157,7 @@ export default function PlantCard({
           <Text style={styles.dim}> · {plant.wateringIntervalDays}일마다{isSnoozed ? ' · 건너뜀' : ''}</Text>
         </Text>
         {!selectionMode && (
-          <Pressable onPress={() => onSkip(plant.id)}>
+          <Pressable onPress={() => setSnoozeOpen(true)}>
             <Text style={styles.skipLink}>건너뛰기</Text>
           </Pressable>
         )}
@@ -270,6 +273,51 @@ export default function PlantCard({
     </Modal>
   );
 
+  const applySnooze = (days: number) => {
+    if (!Number.isFinite(days) || days < 1) return;
+    onSkip(plant.id, Math.round(days));
+    setSnoozeOpen(false);
+    setCustomSnoozeDays('');
+  };
+
+  const snoozeModal = (
+    <Modal visible={snoozeOpen} animationType="slide" transparent onRequestClose={() => setSnoozeOpen(false)}>
+      <View style={styles.historyOverlay}>
+        <View style={styles.historySheet}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>{plant.name} 급수 건너뛰기</Text>
+            <Pressable onPress={() => setSnoozeOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          <View style={styles.snoozePresetRow}>
+            {[1, 3, 7, plant.wateringIntervalDays]
+              .filter((days, i, arr) => arr.indexOf(days) === i)
+              .sort((a, b) => a - b)
+              .map((days) => (
+                <Pressable key={days} style={styles.snoozeChip} onPress={() => applySnooze(days)}>
+                  <Text style={styles.snoozeChipText}>{days}일</Text>
+                </Pressable>
+              ))}
+          </View>
+          <View style={styles.snoozeCustomRow}>
+            <TextInput
+              style={styles.snoozeCustomInput}
+              value={customSnoozeDays}
+              onChangeText={setCustomSnoozeDays}
+              placeholder="직접 입력 (일)"
+              placeholderTextColor={colors.textDim}
+              keyboardType="number-pad"
+            />
+            <Pressable style={styles.snoozeApplyBtn} onPress={() => applySnooze(Number(customSnoozeDays))}>
+              <Text style={styles.snoozeApplyBtnText}>적용</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const galleryModal = (
     <Modal visible={galleryOpen} animationType="fade" transparent onRequestClose={() => setGalleryOpen(false)}>
       <View style={styles.galleryOverlay}>
@@ -301,6 +349,7 @@ export default function PlantCard({
       <>
         <Pressable onPress={() => onToggleSelect?.(plant.id)}>{content}</Pressable>
         {historyModal}
+        {snoozeModal}
         {galleryModal}
       </>
     );
@@ -309,6 +358,7 @@ export default function PlantCard({
     <>
       {content}
       {historyModal}
+      {snoozeModal}
       {galleryModal}
     </>
   );
@@ -425,6 +475,34 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   historyTitle: { fontSize: 16, fontWeight: '700', color: colors.textHeading },
   modalClose: { fontSize: 18, color: colors.textDim, padding: spacing.xs },
   historyList: { maxHeight: 300 },
+  snoozePresetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  snoozeChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    backgroundColor: colors.bg,
+  },
+  snoozeChipText: { fontSize: 13.5, fontWeight: '600', color: colors.text },
+  snoozeCustomRow: { flexDirection: 'row', gap: spacing.sm },
+  snoozeCustomInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: colors.bg,
+    color: colors.textHeading,
+  },
+  snoozeApplyBtn: {
+    backgroundColor: colors.green,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  snoozeApplyBtnText: { color: '#fff', fontWeight: '600', fontSize: 13.5 },
   historyItem: {
     fontSize: 14,
     color: colors.text,
