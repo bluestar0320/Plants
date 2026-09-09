@@ -83,6 +83,16 @@ export const formatHour12 = (hour: number): string => {
   return `${period} ${h12}시`;
 };
 
+export type Season = 'winter' | 'spring' | 'summer' | 'fall';
+
+export const getSeason = (date: Date = new Date()): Season => {
+  const month = date.getMonth() + 1;
+  if (month === 12 || month <= 2) return 'winter';
+  if (month <= 5) return 'spring';
+  if (month <= 8) return 'summer';
+  return 'fall';
+};
+
 export const formatDate = (iso: string): string => {
   const d = parseDateOnly(iso);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(

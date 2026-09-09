@@ -34,7 +34,14 @@ import {
 } from './src/lib/storage';
 import { exportBackup, exportCsv, importBackup, ImportCanceledError } from './src/lib/backup';
 import { seedPlants } from './src/lib/seed';
-import { daysUntilNextWatering, formatHour12, nextWateringDate, toISODate, todayISO } from './src/lib/date';
+import {
+  daysUntilNextWatering,
+  formatHour12,
+  getSeason,
+  nextWateringDate,
+  toISODate,
+  todayISO,
+} from './src/lib/date';
 import {
   cancelWateringReminder,
   configureNotificationHandler,
@@ -65,6 +72,13 @@ const SORT_LABELS: Record<SortMode, string> = {
   name: '이름순',
   location: '위치순',
   recent: '최근 추가순',
+};
+
+const SEASON_TIP: Record<ReturnType<typeof getSeason>, string> = {
+  winter: '❄️ 겨울철에는 식물 생장이 느려져요. 흙이 평소보다 천천히 마른다면 물주기 간격을 며칠 늘려보세요.',
+  spring: '🌱 봄은 생장기예요! 새순이 나기 시작하면 평소보다 물과 비료가 더 필요할 수 있어요.',
+  summer: '☀️ 한여름 고온에는 흙이 빨리 말라요. 겉흙을 자주 확인하고 필요하면 급수 간격을 줄여보세요.',
+  fall: '🍂 가을이 되면 생장 속도가 서서히 느려져요. 물주기 간격을 조금씩 늘려가며 조절해보세요.',
 };
 
 const waterPlant = (plant: Plant, dateISO: string): Plant => {
@@ -119,6 +133,7 @@ function PlantsApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [pestGuideOpen, setPestGuideOpen] = useState(false);
+  const [seasonalTipDismissed, setSeasonalTipDismissed] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [csvExportBusy, setCsvExportBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(
@@ -586,6 +601,15 @@ function PlantsApp() {
         </View>
       )}
 
+      {plants.length > 0 && !seasonalTipDismissed && (
+        <View style={styles.seasonBanner}>
+          <Text style={styles.seasonBannerText}>{SEASON_TIP[getSeason()]}</Text>
+          <Pressable onPress={() => setSeasonalTipDismissed(true)} hitSlop={8}>
+            <Text style={styles.seasonBannerClose}>✕</Text>
+          </Pressable>
+        </View>
+      )}
+
       {plants.length > 0 && (
         <View style={styles.stats}>
           <View style={styles.statCard}>
@@ -891,6 +915,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
   },
+  seasonBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    backgroundColor: colors.greenBg,
+    borderWidth: 1,
+    borderColor: colors.green,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  seasonBannerText: { fontSize: 13, color: colors.greenDark, flex: 1 },
+  seasonBannerClose: { fontSize: 14, color: colors.greenDark, fontWeight: '700', padding: spacing.xs },
   weatherText: { fontSize: 13, color: colors.text },
   weatherWarning: { fontSize: 13, color: colors.danger, fontWeight: '600' },
   rainSuggestionRow: { gap: spacing.sm, marginTop: spacing.xs },
