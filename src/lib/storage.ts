@@ -8,6 +8,8 @@ const SEEDED_KEY = 'plants.app.seeded.v1';
 const NOTIFICATIONS_ENABLED_KEY = 'plants.app.notifications-enabled.v1';
 const WEATHER_ENABLED_KEY = 'plants.app.weather-enabled.v1';
 const WEATHER_CACHE_KEY = 'plants.app.weather-cache.v1';
+const REMINDER_HOUR_KEY = 'plants.app.reminder-hour.v1';
+const DEFAULT_REMINDER_HOUR = 9;
 
 /** Migrates records saved before photos became a gallery array. */
 const migratePlant = (plant: Plant & { photoUri?: string }): Plant => {
@@ -83,4 +85,15 @@ export const loadCachedWeather = async (): Promise<WeatherInfo | null> => {
 
 export const saveCachedWeather = async (weather: WeatherInfo): Promise<void> => {
   await AsyncStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(weather));
+};
+
+/** Hour of day (0-23) local watering reminders fire at. */
+export const getReminderHour = async (): Promise<number> => {
+  const raw = await AsyncStorage.getItem(REMINDER_HOUR_KEY);
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : DEFAULT_REMINDER_HOUR;
+};
+
+export const setReminderHour = async (hour: number): Promise<void> => {
+  await AsyncStorage.setItem(REMINDER_HOUR_KEY, String(hour));
 };

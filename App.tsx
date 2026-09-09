@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import type { Plant, PlantDraft } from './src/types';
 import {
+  getReminderHour,
   hasSeeded,
   isNotificationsEnabled,
   isWeatherEnabled,
@@ -28,11 +29,12 @@ import {
   saveCachedWeather,
   replaceSpeciesCache,
   setNotificationsEnabled as persistNotificationsEnabled,
+  setReminderHour as persistReminderHour,
   setWeatherEnabled as persistWeatherEnabled,
 } from './src/lib/storage';
 import { exportBackup, importBackup, ImportCanceledError } from './src/lib/backup';
 import { seedPlants } from './src/lib/seed';
-import { daysUntilNextWatering, nextWateringDate, toISODate, todayISO } from './src/lib/date';
+import { daysUntilNextWatering, formatHour12, nextWateringDate, toISODate, todayISO } from './src/lib/date';
 import {
   cancelWateringReminder,
   configureNotificationHandler,
@@ -49,6 +51,7 @@ import { writeStatsSnapshot } from 'stats-export';
 import PlantCard from './src/components/PlantCard';
 import PlantForm from './src/components/PlantForm';
 import LightMeter from './src/components/LightMeter';
+import CareStats from './src/components/CareStats';
 import { radius, spacing, useThemeColors, type ThemeColors } from './src/theme';
 
 const WEATHER_STALE_MS = 6 * 60 * 60 * 1000;
@@ -102,6 +105,7 @@ function PlantsApp() {
   const [duplicateDraft, setDuplicateDraft] = useState<PlantDraft | null>(null);
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [reminderHour, setReminderHourState] = useState(9);
   const [viewMode, setViewMode] = useState<'all' | 'location'>('all');
   const [sortMode, setSortMode] = useState<SortMode>('urgency');
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +116,7 @@ function PlantsApp() {
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [lightMeterOpen, setLightMeterOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(
     null,
@@ -121,16 +126,18 @@ function PlantsApp() {
   useEffect(() => {
     (async () => {
       await Promise.all([ensureAndroidChannel(), ensureWateringActionCategory()]);
-      const [stored, seeded, notifOn, weatherOn, cachedWeather] = await Promise.all([
+      const [stored, seeded, notifOn, weatherOn, cachedWeather, savedReminderHour] = await Promise.all([
         loadPlants(),
         hasSeeded(),
         isNotificationsEnabled(),
         isWeatherEnabled(),
         loadCachedWeather(),
+        getReminderHour(),
       ]);
       setNotifEnabled(notifOn);
       setWeatherEnabled(weatherOn);
       setWeather(cachedWeather);
+      setReminderHourState(savedReminderHour);
       if (stored.length > 0) {
         setPlants(stored);
       } else if (seeded) {
@@ -220,7 +227,7 @@ function PlantsApp() {
 
   const maybeSchedule = async (plant: Plant): Promise<Plant> => {
     if (!notifEnabled) return plant;
-    const notificationId = await scheduleWateringReminder(plant);
+    const notificationId = await scheduleWateringReminder(plant, reminderHour);
     return { ...plant, notificationId };
   };
 
@@ -363,7 +370,19 @@ function PlantsApp() {
     await persistNotificationsEnabled(true);
     const updated: Plant[] = [];
     for (const p of plants ?? []) {
-      const notificationId = await scheduleWateringReminder(p);
+      const notificationId = await scheduleWateringReminder(p, reminderHour);
+      updated.push({ ...p, notificationId });
+    }
+    setPlants(updated);
+  };
+
+  const handleChangeReminderHour = async (hour: number) => {
+    setReminderHourState(hour);
+    await persistReminderHour(hour);
+    if (!notifEnabled) return;
+    const updated: Plant[] = [];
+    for (const p of plants ?? []) {
+      const notificationId = await scheduleWateringReminder(p, hour);
       updated.push({ ...p, notificationId });
     }
     setPlants(updated);
@@ -508,6 +527,11 @@ function PlantsApp() {
           {plants.length > 0 && (
             <Pressable style={styles.ghostBtn} onPress={handleToggleSelectionMode}>
               <Text style={styles.ghostBtnText}>{selectionMode ? '선택 취소' : '✅ 여러 개 선택'}</Text>
+            </Pressable>
+          )}
+          {plants.length > 0 && (
+            <Pressable style={styles.ghostBtn} onPress={() => setStatsOpen(true)}>
+              <Text style={styles.ghostBtnText}>📊 통계</Text>
             </Pressable>
           )}
           <Pressable style={styles.ghostBtn} onPress={() => setSettingsOpen(true)}>
@@ -693,7 +717,25 @@ function PlantsApp() {
             </Pressable>
           </View>
           <View style={styles.settingsContent}>
-            <Text style={styles.settingsSectionTitle}>데이터 백업</Text>
+            <Text style={styles.settingsSectionTitle}>알림 시간</Text>
+            <Text style={styles.settingsHint}>매일 이 시간에 물 줄 식물이 있으면 알려드려요.</Text>
+            <View style={styles.reminderHourRow}>
+              <Pressable
+                style={styles.stepperBtn}
+                onPress={() => handleChangeReminderHour((reminderHour + 23) % 24)}
+              >
+                <Text style={styles.stepperBtnText}>−</Text>
+              </Pressable>
+              <Text style={styles.reminderHourText}>{formatHour12(reminderHour)}</Text>
+              <Pressable
+                style={styles.stepperBtn}
+                onPress={() => handleChangeReminderHour((reminderHour + 1) % 24)}
+              >
+                <Text style={styles.stepperBtnText}>+</Text>
+              </Pressable>
+            </View>
+
+            <Text style={[styles.settingsSectionTitle, { marginTop: spacing.md }]}>데이터 백업</Text>
             <Text style={styles.settingsHint}>
               모든 데이터는 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 내보내기해두세요.
             </Text>
@@ -706,6 +748,20 @@ function PlantsApp() {
               <Text style={styles.ghostBtnText}>📥 데이터 가져오기</Text>
             </Pressable>
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={statsOpen} animationType="slide" onRequestClose={() => setStatsOpen(false)}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>급수 통계</Text>
+            <Pressable onPress={() => setStatsOpen(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+          <ScrollView>
+            <CareStats plants={plants} />
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -923,6 +979,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   settingsContent: { padding: spacing.lg, gap: spacing.sm },
   settingsSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.textHeading },
   settingsHint: { fontSize: 13, color: colors.textDim, marginBottom: spacing.xs },
+  reminderHourRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    marginBottom: spacing.xs,
+  },
+  stepperBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnText: { fontSize: 18, fontWeight: '700', color: colors.text },
+  reminderHourText: { fontSize: 16, fontWeight: '700', color: colors.textHeading, minWidth: 90, textAlign: 'center' },
   snackbar: {
     position: 'absolute',
     left: spacing.lg,

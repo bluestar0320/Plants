@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import type { Plant } from '../types';
 import { nextWateringDate, parseDateOnly } from './date';
 
-const REMINDER_HOUR = 9;
+export const DEFAULT_REMINDER_HOUR = 9;
 const ANDROID_CHANNEL_ID = 'watering-reminders';
 const WATER_CATEGORY_ID = 'watering-reminder-actions';
 
@@ -54,11 +54,12 @@ export const getNotificationPermissionGranted = async (): Promise<boolean> => {
 
 const reminderDateFor = (
   plant: Pick<Plant, 'lastWateredAt' | 'wateringIntervalDays' | 'snoozedUntil'>,
+  reminderHour: number,
 ): Date => {
   const due = plant.snoozedUntil
     ? parseDateOnly(plant.snoozedUntil)
     : nextWateringDate(plant.lastWateredAt, plant.wateringIntervalDays);
-  due.setHours(REMINDER_HOUR, 0, 0, 0);
+  due.setHours(reminderHour, 0, 0, 0);
   const now = new Date();
   if (due.getTime() <= now.getTime()) {
     return new Date(now.getTime() + 10_000);
@@ -72,6 +73,7 @@ export const scheduleWateringReminder = async (
     Plant,
     'id' | 'name' | 'lastWateredAt' | 'wateringIntervalDays' | 'notificationId' | 'snoozedUntil'
   >,
+  reminderHour: number = DEFAULT_REMINDER_HOUR,
 ): Promise<string> => {
   if (plant.notificationId) {
     await Notifications.cancelScheduledNotificationAsync(plant.notificationId).catch(() => {});
@@ -86,7 +88,7 @@ export const scheduleWateringReminder = async (
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: reminderDateFor(plant),
+      date: reminderDateFor(plant, reminderHour),
       channelId: Platform.OS === 'android' ? ANDROID_CHANNEL_ID : undefined,
     },
   });
