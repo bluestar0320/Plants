@@ -36,7 +36,8 @@
           "locationWhenInUsePermission": "실외 식물의 비/서리/폭염 알림을 위해 대략적인 위치가 필요해요."
         }
       ],
-      "./plugins/withStatsProvider"
+      "./plugins/withStatsProvider",
+      "./plugins/withWateringWidget"
     ]
   }
 }

@@ -10,7 +10,8 @@ class StatsExportModule : Module() {
 
     Function("writeStats") { total: Int, overdue: Int, dueToday: Int ->
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      StatsProvider.writeStats(context, total, overdue, dueToday)
+      StatsPrefs.write(context, total, overdue, dueToday)
+      WateringWidgetProvider.updateAll(context)
     }
   }
 }
