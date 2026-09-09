@@ -32,7 +32,7 @@ import {
   setReminderHour as persistReminderHour,
   setWeatherEnabled as persistWeatherEnabled,
 } from './src/lib/storage';
-import { exportBackup, importBackup, ImportCanceledError } from './src/lib/backup';
+import { exportBackup, exportCsv, importBackup, ImportCanceledError } from './src/lib/backup';
 import { seedPlants } from './src/lib/seed';
 import { daysUntilNextWatering, formatHour12, nextWateringDate, toISODate, todayISO } from './src/lib/date';
 import {
@@ -118,6 +118,7 @@ function PlantsApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [csvExportBusy, setCsvExportBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ plant: Plant; timeoutId: ReturnType<typeof setTimeout> } | null>(
     null,
   );
@@ -421,6 +422,17 @@ function PlantsApp() {
       Alert.alert('내보내기 실패', e instanceof Error ? e.message : undefined);
     } finally {
       setExportBusy(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setCsvExportBusy(true);
+    try {
+      await exportCsv();
+    } catch (e) {
+      Alert.alert('CSV 내보내기 실패', e instanceof Error ? e.message : undefined);
+    } finally {
+      setCsvExportBusy(false);
     }
   };
 
@@ -741,7 +753,12 @@ function PlantsApp() {
             </Text>
             <Pressable style={styles.primaryBtn} onPress={handleExport} disabled={exportBusy}>
               <Text style={styles.primaryBtnText}>
-                {exportBusy ? '내보내는 중…' : '📤 데이터 내보내기'}
+                {exportBusy ? '내보내는 중…' : '📤 데이터 내보내기 (JSON)'}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.ghostBtn} onPress={handleExportCsv} disabled={csvExportBusy}>
+              <Text style={styles.ghostBtnText}>
+                {csvExportBusy ? '내보내는 중…' : '📄 CSV로 내보내기'}
               </Text>
             </Pressable>
             <Pressable style={styles.ghostBtn} onPress={handleImport}>
