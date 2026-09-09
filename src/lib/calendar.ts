@@ -1,5 +1,12 @@
 import type { Plant } from '../types';
-import { addDaysToISO, addMonthsToISO, REPOT_REMINDER_MONTHS, ROTATE_REMINDER_DAYS, toISODate } from './date';
+import {
+  addDaysToISO,
+  addMonthsToISO,
+  nextDueDateISO,
+  REPOT_REMINDER_MONTHS,
+  ROTATE_REMINDER_DAYS,
+  toISODate,
+} from './date';
 
 export const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -78,7 +85,7 @@ export const buildCalendarEvents = (
     for (const d of p.wateringHistory ?? []) {
       add(d, { plantId: p.id, plantName: p.name, type: 'water', done: true });
     }
-    const waterDue = p.snoozedUntil ?? addDaysToISO(p.lastWateredAt, p.wateringIntervalDays);
+    const waterDue = nextDueDateISO(p.lastWateredAt, p.wateringIntervalDays, p.snoozedUntil);
     add(waterDue, { plantId: p.id, plantName: p.name, type: 'water', done: false });
 
     if (p.lastFertilizedAt) {

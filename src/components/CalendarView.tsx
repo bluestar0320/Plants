@@ -39,6 +39,8 @@ export default function CalendarView({ plants }: Props) {
     const next = addMonths(year, month, delta);
     setYear(next.year);
     setMonth(next.month);
+    const todayInNextMonth = today.slice(0, 4) === String(next.year) && Number(today.slice(5, 7)) === next.month;
+    setSelectedDate(todayInNextMonth ? today : `${next.year}-${String(next.month).padStart(2, '0')}-01`);
   };
 
   const dueColor = (dueIso: string): string => {

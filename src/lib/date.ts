@@ -39,12 +39,19 @@ export const daysAgoISO = (n: number): string => {
   return toISODate(d);
 };
 
+/** The ISO due date for an interval-based care action, honoring an optional snooze override. */
+export const nextDueDateISO = (
+  lastActionAt: string,
+  intervalDays: number,
+  snoozedUntil?: string,
+): string => (snoozedUntil ? snoozedUntil : toISODate(nextWateringDate(lastActionAt, intervalDays)));
+
 export const daysUntilNextWatering = (
   lastWateredAt: string,
   intervalDays: number,
   snoozedUntil?: string,
 ): number => {
-  const due = snoozedUntil ? parseDateOnly(snoozedUntil) : nextWateringDate(lastWateredAt, intervalDays);
+  const due = parseDateOnly(nextDueDateISO(lastWateredAt, intervalDays, snoozedUntil));
   const today = parseDateOnly(todayISO());
   const msPerDay = 1000 * 60 * 60 * 24;
   return Math.round((due.getTime() - today.getTime()) / msPerDay);
