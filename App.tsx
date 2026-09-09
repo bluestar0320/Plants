@@ -307,6 +307,9 @@ function PlantsApp() {
       speciesId: plant.speciesId,
       wateringHistory: undefined,
       humidityNote: plant.humidityNote,
+      mistIntervalDays: plant.mistIntervalDays,
+      lastMistedAt: undefined,
+      lastRotatedAt: undefined,
     });
     setIsAdding(true);
   };
@@ -339,6 +342,18 @@ function PlantsApp() {
   const handleFertilize = (id: string) => {
     setPlants((prev) =>
       (prev ?? []).map((p) => (p.id === id ? { ...p, lastFertilizedAt: todayISO() } : p)),
+    );
+  };
+
+  const handleMist = (id: string) => {
+    setPlants((prev) =>
+      (prev ?? []).map((p) => (p.id === id ? { ...p, lastMistedAt: todayISO() } : p)),
+    );
+  };
+
+  const handleRotate = (id: string) => {
+    setPlants((prev) =>
+      (prev ?? []).map((p) => (p.id === id ? { ...p, lastRotatedAt: todayISO() } : p)),
     );
   };
 
@@ -711,6 +726,8 @@ function PlantsApp() {
                   onDelete={handleDelete}
                   onRepot={handleRepot}
                   onFertilize={handleFertilize}
+                  onMist={handleMist}
+                  onRotate={handleRotate}
                   onSkip={handleSkip}
                   onDuplicate={handleDuplicate}
                   onToggleFavorite={handleToggleFavorite}
@@ -736,6 +753,8 @@ function PlantsApp() {
                   onDelete={handleDelete}
                   onRepot={handleRepot}
                   onFertilize={handleFertilize}
+                  onMist={handleMist}
+                  onRotate={handleRotate}
                   onSkip={handleSkip}
                   onDuplicate={handleDuplicate}
                   onToggleFavorite={handleToggleFavorite}

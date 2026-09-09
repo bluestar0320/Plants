@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import type { Plant } from '../types';
 import {
+  daysSince,
   daysUntilDue,
   daysUntilNextWatering,
   formatDate,
@@ -22,6 +23,7 @@ import {
 import { radius, spacing, useThemeColors, type ThemeColors } from '../theme';
 
 const REPOT_REMINDER_MONTHS = 12;
+const ROTATE_REMINDER_DAYS = 14;
 
 const STATUS_LABEL: Record<string, string> = {
   overdue: '물 주세요!',
@@ -44,6 +46,8 @@ interface Props {
   onDelete: (id: string) => void;
   onRepot: (id: string) => void;
   onFertilize: (id: string) => void;
+  onMist: (id: string) => void;
+  onRotate: (id: string) => void;
   onSkip: (id: string) => void;
   onDuplicate: (plant: Plant) => void;
   onToggleFavorite: (id: string) => void;
@@ -59,6 +63,8 @@ export default function PlantCard({
   onDelete,
   onRepot,
   onFertilize,
+  onMist,
+  onRotate,
   onSkip,
   onDuplicate,
   onToggleFavorite,
@@ -84,6 +90,12 @@ export default function PlantCard({
       ? daysUntilDue(plant.lastFertilizedAt, plant.fertilizeIntervalDays!)
       : null;
   const fertilizeDue = fertilizeDaysLeft !== null && fertilizeDaysLeft <= 0;
+  const mistTracked = !!plant.mistIntervalDays;
+  const mistDaysLeft =
+    mistTracked && plant.lastMistedAt ? daysUntilDue(plant.lastMistedAt, plant.mistIntervalDays!) : null;
+  const mistDue = mistDaysLeft !== null && mistDaysLeft <= 0;
+  const rotateDays = plant.lastRotatedAt ? daysSince(plant.lastRotatedAt) : null;
+  const rotateDue = rotateDays !== null && rotateDays >= ROTATE_REMINDER_DAYS;
   const photos = plant.photos ?? [];
 
   const content = (
@@ -173,6 +185,19 @@ export default function PlantCard({
           </Pressable>
         </View>
       )}
+      {!selectionMode && (
+        <View style={styles.repotRow}>
+          <Text style={[styles.small, rotateDue && styles.repotDueText]}>
+            🔄 화분 회전:{' '}
+            {plant.lastRotatedAt
+              ? `${formatDate(plant.lastRotatedAt)} (${rotateDays}일 전)${rotateDue ? ' · 돌려주세요' : ''}`
+              : '기록 없음'}
+          </Text>
+          <Pressable onPress={() => onRotate(plant.id)}>
+            <Text style={styles.repotLink}>회전했어요</Text>
+          </Pressable>
+        </View>
+      )}
       {!selectionMode && fertilizeTracked && (
         <View style={styles.repotRow}>
           <Text style={[styles.small, fertilizeDue && styles.repotDueText]}>
@@ -183,6 +208,19 @@ export default function PlantCard({
           </Text>
           <Pressable onPress={() => onFertilize(plant.id)}>
             <Text style={styles.repotLink}>비료 줬어요</Text>
+          </Pressable>
+        </View>
+      )}
+      {!selectionMode && mistTracked && (
+        <View style={styles.repotRow}>
+          <Text style={[styles.small, mistDue && styles.repotDueText]}>
+            💦 분무:{' '}
+            {plant.lastMistedAt
+              ? `${mistDaysLeft! < 0 ? `${Math.abs(mistDaysLeft!)}일 지남` : mistDaysLeft === 0 ? '오늘' : `${mistDaysLeft}일 후`}`
+              : '기록 없음'}
+          </Text>
+          <Pressable onPress={() => onMist(plant.id)}>
+            <Text style={styles.repotLink}>분무했어요</Text>
           </Pressable>
         </View>
       )}

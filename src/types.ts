@@ -11,6 +11,9 @@ export interface Plant {
   lastFertilizedAt?: string; // ISO date
   fertilizerType?: string;
   humidityNote?: string;
+  mistIntervalDays?: number;
+  lastMistedAt?: string; // ISO date
+  lastRotatedAt?: string; // ISO date
   /** Local photo URIs; the first is the cover photo shown on the card. */
   photos?: string[];
   wateringIntervalDays: number;

@@ -52,6 +52,11 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
   const [lastFertilizedAt, setLastFertilizedAt] = useState(initial?.lastFertilizedAt);
   const [fertilizerType, setFertilizerType] = useState(initial?.fertilizerType ?? '');
   const [humidityNote, setHumidityNote] = useState(initial?.humidityNote ?? '');
+  const [mistInterval, setMistInterval] = useState(
+    initial?.mistIntervalDays ? String(initial.mistIntervalDays) : '',
+  );
+  const [lastMistedAt, setLastMistedAt] = useState(initial?.lastMistedAt);
+  const [lastRotatedAt, setLastRotatedAt] = useState(initial?.lastRotatedAt);
   const [careLevel, setCareLevel] = useState(initial?.careLevel);
   const [speciesId, setSpeciesId] = useState(initial?.speciesId);
   const [error, setError] = useState('');
@@ -108,6 +113,10 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       setError('비료 주기는 1일 이상이어야 해요.');
       return;
     }
+    if (mistInterval.trim() && (!Number.isFinite(Number(mistInterval)) || Number(mistInterval) < 1)) {
+      setError('분무 주기는 1일 이상이어야 해요.');
+      return;
+    }
     onSubmit({
       name: name.trim(),
       species: species.trim() || undefined,
@@ -125,6 +134,9 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
       lastFertilizedAt: fertilizeInterval.trim() ? lastFertilizedAt : undefined,
       fertilizerType: fertilizeInterval.trim() ? fertilizerType.trim() || undefined : undefined,
       humidityNote: humidityNote.trim() || undefined,
+      mistIntervalDays: mistInterval.trim() ? Math.round(Number(mistInterval)) : undefined,
+      lastMistedAt: mistInterval.trim() ? lastMistedAt : undefined,
+      lastRotatedAt,
     });
   };
 
@@ -309,6 +321,72 @@ export default function PlantForm({ initial, submitLabel, onCancel, onSubmit }: 
           />
         </View>
       )}
+
+      <View style={styles.fieldRow}>
+        <View style={[styles.field, styles.flex1]}>
+          <Text style={styles.label}>분무 주기 (일, 선택)</Text>
+          <TextInput
+            style={styles.input}
+            value={mistInterval}
+            onChangeText={setMistInterval}
+            placeholder="비워두면 추적 안 함"
+            placeholderTextColor={colors.textDim}
+            keyboardType="number-pad"
+          />
+        </View>
+        {!!mistInterval.trim() && (
+          <View style={[styles.field, styles.flex1]}>
+            <Text style={styles.label}>마지막 분무일</Text>
+            {Platform.OS === 'web' ? (
+              <TextInput
+                style={styles.input}
+                value={lastMistedAt ?? ''}
+                onChangeText={(text) => setLastMistedAt(text || undefined)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textDim}
+              />
+            ) : (
+              <Pressable
+                style={styles.input}
+                onPress={() => openDateField(lastMistedAt ?? todayISO(), setLastMistedAt)}
+              >
+                <Text style={{ color: lastMistedAt ? colors.textHeading : colors.textDim }}>
+                  {lastMistedAt ?? '탭해서 설정'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>마지막 화분 회전 (선택)</Text>
+        <View style={styles.photoRow}>
+          {Platform.OS === 'web' ? (
+            <TextInput
+              style={[styles.input, styles.flex1]}
+              value={lastRotatedAt ?? ''}
+              onChangeText={(text) => setLastRotatedAt(text || undefined)}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textDim}
+            />
+          ) : (
+            <Pressable
+              style={[styles.input, styles.flex1]}
+              onPress={() => openDateField(lastRotatedAt ?? todayISO(), setLastRotatedAt)}
+            >
+              <Text style={{ color: lastRotatedAt ? colors.textHeading : colors.textDim }}>
+                {lastRotatedAt ?? '기록 없음 · 탭해서 설정'}
+              </Text>
+            </Pressable>
+          )}
+          {lastRotatedAt && (
+            <Pressable style={styles.ghostBtn} onPress={() => setLastRotatedAt(undefined)}>
+              <Text style={[styles.ghostBtnText, { color: colors.danger }]}>지우기</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
 
       <View style={styles.field}>
         <View style={styles.labelRow}>
