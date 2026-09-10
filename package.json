@@ -1,0 +1,37 @@
+{
+  "name": "plants",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@expo/metro-runtime": "^57.0.12",
+    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-native-community/datetimepicker": "^9.1.0",
+    "expo": "~57.0.15",
+    "expo-crypto": "^57.0.1",
+    "expo-file-system": "^57.0.5",
+    "expo-image-manipulator": "^57.0.12",
+    "expo-image-picker": "^57.0.12",
+    "expo-location": "^57.0.12",
+    "expo-notifications": "^57.0.13",
+    "expo-sensors": "^57.0.2",
+    "expo-sharing": "^57.0.15",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "^19.2.3",
+    "react-native": "0.86.2",
+    "react-native-safe-area-context": "^5.9.1",
+    "react-native-web": "^0.21.2",
+    "stats-export": "file:./modules/stats-export"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "private": true
+}
